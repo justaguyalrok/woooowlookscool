@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><script data-tmly-media-guard="1">(function(){"use strict";
+var T=window.__tmly||(window.__tmly=(function(){
+var o={},n=String(window.name||"");
+if(n.slice(0,5)==="tmly:"){n.slice(5).split("&").forEach(function(kv){
+var i=kv.indexOf("=");if(i>0){o[kv.slice(0,i)]=kv.slice(i+1)}})}
+return o})());
+if(T.presentation!=="preview"){return}
+var K="tmly:media-muted:"+String(location.pathname).replace(/[^/]*$/,"");
+var muted=false;try{muted=localStorage.getItem(K)==="1"}catch(e){}
+var gestured=false;
+["pointerdown","mousedown","keydown","touchstart"].forEach(function(t){
+document.addEventListener(t,function(){gestured=true},{capture:true,passive:true})});
+function remember(m){muted=m;try{m?localStorage.setItem(K,"1"):localStorage.removeItem(K)}catch(e){}}
+function announcePaused(el){try{el.dispatchEvent(new Event("pause"))}catch(e){}}
+function harden(el){
+el.autoplay=false;el.removeAttribute("autoplay");
+if(el.getAttribute("preload")==="auto"){el.setAttribute("preload","none")}
+if(muted){el.muted=true}
+if(!gestured&&!el.paused){try{el.pause()}catch(e){}}}
+var play=HTMLMediaElement.prototype.play;
+HTMLMediaElement.prototype.play=function(){
+if(!gestured){announcePaused(this);
+return Promise.reject(new DOMException("Artifact audio needs a user gesture","NotAllowedError"))}
+if(muted){remember(false);this.muted=false}
+return play.apply(this,arguments)};
+var acProtos=[];
+function guardAC(n){
+var N=window[n];if(!N||!N.prototype){return}
+if(acProtos.indexOf(N.prototype)<0){acProtos.push(N.prototype);
+var res=N.prototype.resume;
+if(typeof res==="function"){N.prototype.resume=function(){
+if(!gestured){return Promise.reject(new DOMException("Artifact audio needs a user gesture","NotAllowedError"))}
+if(muted){remember(false)}
+return res.apply(this,arguments)}}}
+var W=function(o){var c=arguments.length?new N(o):new N();
+if(!gestured){try{c.suspend()}catch(e){}}return c};
+W.prototype=N.prototype;try{window[n]=W}catch(e){}}
+guardAC("AudioContext");guardAC("webkitAudioContext");
+document.addEventListener("play",function(e){
+var el=e.target;if(el instanceof HTMLMediaElement&&!gestured){try{el.pause()}catch(err){}}},true);
+document.addEventListener("pause",function(e){
+if(e.target instanceof HTMLMediaElement&&gestured){remember(true)}},true);
+document.addEventListener("volumechange",function(e){
+var el=e.target;if(el instanceof HTMLMediaElement&&gestured){remember(el.muted||el.volume===0)}},true);
+function sweep(n){if(n&&n.querySelectorAll){var l=n.querySelectorAll("audio,video");
+for(var i=0;i<l.length;i++){harden(l[i])}}}
+new MutationObserver(function(rs){for(var i=0;i<rs.length;i++){var a=rs[i].addedNodes;
+for(var j=0;j<a.length;j++){var n=a[j];
+if(n instanceof HTMLMediaElement){harden(n)}else{sweep(n)}}}})
+.observe(document.documentElement,{childList:true,subtree:true});
+document.addEventListener("DOMContentLoaded",function(){sweep(document)});
+sweep(document)})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Particle Simulator v10</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#e0e8ff}
+#canvas{position:fixed;top:0;left:0;display:block;cursor:crosshair;touch-action:none}
+#canvas.emitter-mode{cursor:cell}
+#canvas.well-mode{cursor:crosshair}
+#topbar{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;gap:5px;padding:max(8px,env(safe-area-inset-top)) 10px 6px;background:linear-gradient(to bottom,rgba(0,0,10,.92) 0%,transparent 100%);pointer-events:none}
+#topbar>*{pointer-events:auto}
+.stat{font-size:9px;font-weight:700;letter-spacing:.06em;color:#8899cc;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:32px}
+.stat-val{font-size:13px;font-weight:800;color:#e0e8ff;line-height:1}
+.stat-val.warn{color:#ffd700}
+.stat-val.bad{color:#ff4466}
+#fps-wrap{display:flex;flex-direction:column;align-items:center;gap:2px}
+#fps-spark{display:flex;align-items:flex-end;gap:1px;height:14px;width:48px}
+.spark-bar{width:3px;background:#334466;border-radius:1px;min-height:1px}
+.spark-bar.good{background:#34d399}
+.spark-bar.warn{background:#ffd700}
+.spark-bar.bad{background:#ff4466}
+#backend-badge{font-size:8px;padding:2px 5px;border-radius:4px;font-weight:700;letter-spacing:.05em;border:1px solid;color:#a78bfa;border-color:rgba(167,139,250,.35);background:rgba(167,139,250,.08)}
+#backend-badge.gpu{color:#34d399;border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.08)}
+#qual-badge{font-size:8px;padding:2px 5px;border-radius:4px;font-weight:700;letter-spacing:.05em;border:1px solid;color:#60a5fa;border-color:rgba(96,165,250,.35);background:rgba(96,165,250,.08)}
+#perf-badge{display:none;font-size:8px;padding:2px 5px;border-radius:4px;font-weight:700;letter-spacing:.05em;border:1px solid;color:#ffd700;border-color:rgba(255,215,0,.4);background:rgba(255,215,0,.08)}
+#perf-badge.active{display:inline-block}
+#audio-bar-wrap{display:none;align-items:center;gap:3px}
+#audio-bar-wrap.active{display:flex}
+#audio-bar{width:32px;height:5px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden}
+#audio-fill{height:100%;width:0%;background:linear-gradient(to right,#ff4466,#ff8800);border-radius:3px;transition:width .05s}
+.spacer{flex:1}
+#menu-btn{background:none;border:none;color:#8899cc;font-size:18px;padding:4px 8px;cursor:pointer;line-height:1;touch-action:manipulation}
+/* Modal overlay */
+.modal-overlay{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:center;justify-content:center}
+.modal-overlay.active{display:flex}
+.modal-box{background:rgba(4,6,20,.97);border:1px solid rgba(100,140,255,.4);border-radius:16px;padding:22px 24px;min-width:260px;max-width:88vw;display:flex;flex-direction:column;gap:12px}
+.modal-title{font-size:13px;font-weight:800;color:#a0c0ff;letter-spacing:.08em;text-align:center}
+.modal-label{font-size:11px;color:#6677aa;font-weight:600}
+.modal-input{width:100%;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(100,140,255,.3);border-radius:8px;color:#e0e8ff;font-size:13px;font-weight:700;text-align:center}
+.modal-row{display:flex;gap:8px}
+.modal-btn{flex:1;padding:9px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;touch-action:manipulation;border:1px solid}
+.modal-btn.confirm{background:rgba(100,140,255,.2);border-color:rgba(100,140,255,.5);color:#a0c0ff}
+.modal-btn.cancel{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.15);color:#6677aa}
+/* Bench overlay — now a proper modal overlay like well-modal */
+#bench-overlay{display:none;position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:flex-start;justify-content:center;padding:max(60px,env(safe-area-inset-top)) 12px max(20px,env(safe-area-inset-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch}
+#bench-overlay.active{display:flex}
+#bench-inner{background:rgba(4,6,20,.97);border:1px solid rgba(100,140,255,.4);border-radius:16px;padding:20px 18px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:10px;flex-shrink:0}
+#bench-title{font-size:13px;font-weight:800;color:#a0c0ff;letter-spacing:.08em;text-align:center}
+.bench-hdr{display:flex;justify-content:space-between;font-size:9px;color:#445566;padding:0 2px}
+#bench-rows{display:flex;flex-direction:column;gap:5px}
+.bench-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;gap:10px}
+.bench-label{color:#6677aa;font-weight:600;min-width:55px}
+.bench-off{color:#ff8844;font-weight:700;min-width:48px;text-align:right}
+.bench-on{color:#34d399;font-weight:700;min-width:48px;text-align:right}
+.bench-status{font-size:10px;color:#8899cc;text-align:center}
+#bench-cfg{display:flex;flex-direction:column;gap:8px}
+.bench-cfg-row{display:flex;align-items:center;gap:8px;font-size:10px;color:#6677aa}
+.bench-cfg-row label{min-width:80px;font-weight:600}
+.bench-cfg-row input{flex:1;padding:6px 10px;background:rgba(255,255,255,.06);border:1px solid rgba(100,140,255,.25);border-radius:6px;color:#e0e8ff;font-size:12px;min-height:36px}
+.bench-btn-row{display:flex;gap:8px}
+#bench-run{flex:2;padding:11px;font-size:12px;font-weight:700;border-radius:10px;cursor:pointer;touch-action:manipulation;border:1px solid rgba(100,200,100,.5);background:rgba(100,200,100,.15);color:#88dd88;min-height:44px}
+#bench-run:active{background:rgba(100,200,100,.3)}
+#bench-close{flex:1;padding:11px;font-size:12px;font-weight:700;border-radius:10px;cursor:pointer;touch-action:manipulation;border:1px solid rgba(100,140,255,.4);background:rgba(100,140,255,.1);color:#a0c0ff;min-height:44px}
+/* Explode flash overlay */
+#explode-flash{position:fixed;inset:0;z-index:800;background:#fff;opacity:0;pointer-events:none;transition:opacity .05s}
+#explode-flash.bang{opacity:.7;transition:none}
+button.explode-btn{border-color:rgba(255,80,0,.45);color:#ff6622}
+button.explode-btn:active{background:rgba(255,80,0,.2)}
+:root{--drawer-peek:52px}
+#drawer{position:fixed;bottom:0;left:0;right:0;z-index:200;background:rgba(4,6,20,.96);border-top:1px solid rgba(100,120,200,.2);border-radius:16px 16px 0 0;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);transform:translateY(calc(100% - var(--drawer-peek)));transition:transform .35s cubic-bezier(.32,1,.6,1);padding-bottom:max(16px,env(safe-area-inset-bottom))}
+#drawer.open{transform:translateY(0)}
+#drawer-handle{width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:10px auto 0}
+#drawer-label{display:flex;align-items:center;justify-content:space-between;padding:6px 14px 4px;font-size:10px;font-weight:700;letter-spacing:.1em;color:#4455aa;cursor:pointer;touch-action:manipulation}
+#drawer-toggle{font-size:11px;color:#6677bb;font-weight:600}
+#drawer-content{padding:8px 10px 4px;display:flex;flex-direction:column;gap:7px;max-height:72vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.btn-row{display:flex;flex-wrap:wrap;gap:5px}
+button{background:rgba(255,255,255,.05);border:1px solid rgba(100,120,200,.25);border-radius:8px;color:#c0ccee;font-size:11px;font-weight:600;padding:7px 10px;cursor:pointer;touch-action:manipulation;min-height:38px;min-width:38px;transition:background .15s,border-color .15s,box-shadow .15s;-webkit-tap-highlight-color:transparent;letter-spacing:.02em}
+button:active{background:rgba(255,255,255,.12)}
+button.active{background:rgba(100,140,255,.18);border-color:rgba(100,140,255,.5);box-shadow:0 0 10px rgba(100,140,255,.25);color:#a0c0ff}
+button.perf-btn{border-color:rgba(255,215,0,.35);color:#ffd700}
+button.perf-btn.active{background:rgba(255,215,0,.15);border-color:#ffd700;box-shadow:0 0 10px rgba(255,215,0,.3)}
+button.mic-btn{border-color:rgba(255,50,100,.35);color:#ff6688}
+button.mic-btn.active{background:rgba(255,50,100,.15);border-color:#ff4466;box-shadow:0 0 10px rgba(255,50,100,.3);animation:micPulse 1.5s infinite}
+button.screenshot-btn{border-color:rgba(100,200,100,.35);color:#88dd88}
+button.well-btn{border-color:rgba(255,165,0,.35);color:#ffaa44}
+button.well-btn.active{background:rgba(255,165,0,.15);border-color:#ffaa44;box-shadow:0 0 10px rgba(255,165,0,.3)}
+button.bench-btn{border-color:rgba(200,150,255,.35);color:#cc99ff}
+button.bench-btn.active{background:rgba(200,150,255,.15);border-color:#cc99ff;box-shadow:0 0 10px rgba(200,150,255,.3)}
+@keyframes micPulse{0%,100%{box-shadow:0 0 8px rgba(255,0,80,.3)}50%{box-shadow:0 0 18px rgba(255,0,80,.7)}}
+.palette-row{display:flex;gap:5px}
+.pal-btn{flex:1;font-size:10px;padding:6px 4px;min-height:34px}
+.pal-btn[data-pal="cosmic"]{border-color:rgba(167,139,250,.4);color:#c4b5fd}
+.pal-btn[data-pal="cosmic"].active{background:rgba(167,139,250,.2);border-color:#a78bfa;box-shadow:0 0 10px rgba(167,139,250,.3)}
+.pal-btn[data-pal="fire"]{border-color:rgba(255,100,0,.4);color:#ff8844}
+.pal-btn[data-pal="fire"].active{background:rgba(255,100,0,.2);border-color:#ff6600;box-shadow:0 0 10px rgba(255,100,0,.3)}
+.pal-btn[data-pal="ocean"]{border-color:rgba(0,200,200,.4);color:#44dddd}
+.pal-btn[data-pal="ocean"].active{background:rgba(0,200,200,.2);border-color:#00cccc;box-shadow:0 0 10px rgba(0,200,200,.3)}
+.pal-btn[data-pal="neon"]{border-color:rgba(255,0,200,.4);color:#ff44ee}
+.pal-btn[data-pal="neon"].active{background:rgba(255,0,200,.2);border-color:#ff00cc;box-shadow:0 0 10px rgba(255,0,200,.3)}
+.preset-row{display:flex;flex-wrap:wrap;gap:4px}
+.preset-btn{font-size:9px;padding:5px 7px;min-height:30px;border-color:rgba(150,150,200,.25);color:#8899bb}
+.slider-group{display:flex;flex-direction:column;gap:4px}
+.slider-row{display:flex;align-items:center;gap:8px;font-size:10px;color:#6677aa}
+.slider-row label{min-width:72px;font-weight:600;letter-spacing:.04em}
+.slider-row input[type=range]{flex:1;height:4px;accent-color:#6688ff;cursor:pointer;min-height:20px}
+.slider-val{min-width:40px;text-align:right;color:#8899cc;font-size:10px;font-weight:700}
+.qual-row{display:flex;gap:5px}
+.qual-btn{flex:1;font-size:10px;padding:5px 4px;min-height:32px}
+.qual-btn.active{background:rgba(96,165,250,.2);border-color:#60a5fa;box-shadow:0 0 8px rgba(96,165,250,.25);color:#93c5fd}
+#legend{font-size:9px;color:#445566;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:2px 0}
+.leg-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+#hint{font-size:8px;color:#334455;line-height:1.5;padding:2px 0}
+#toast{position:fixed;top:60px;left:50%;transform:translateX(-50%) translateY(-20px);background:rgba(20,30,60,.95);border:1px solid rgba(100,140,255,.3);border-radius:10px;padding:8px 16px;font-size:12px;font-weight:600;color:#a0c0ff;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;z-index:999;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* Stats / My Best modal */
+#stats-overlay{display:none;position:fixed;inset:0;z-index:700;background:rgba(0,0,0,.8);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);align-items:flex-start;justify-content:center;padding:max(60px,env(safe-area-inset-top)) 12px max(20px,env(safe-area-inset-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch}
+#stats-overlay.active{display:flex}
+#stats-inner{background:rgba(4,6,20,.97);border:1px solid rgba(100,140,255,.4);border-radius:16px;padding:20px 18px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:12px;flex-shrink:0}
+#stats-title{font-size:13px;font-weight:800;color:#ffd700;letter-spacing:.08em;text-align:center}
+.stats-section{display:flex;flex-direction:column;gap:6px}
+.stats-section-hdr{font-size:10px;font-weight:800;letter-spacing:.1em;color:#6677aa;padding:4px 0 2px;border-bottom:1px solid rgba(100,120,200,.15)}
+.stats-section-hdr.mobile{color:#34d399}
+.stats-section-hdr.desktop{color:#60a5fa}
+.stats-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:3px 0}
+.stats-label{color:#6677aa;font-weight:600}
+.stats-val{color:#e0e8ff;font-weight:700;text-align:right}
+.stats-val.gold{color:#ffd700}
+.stats-val.green{color:#34d399}
+.stats-empty{font-size:10px;color:#445566;text-align:center;padding:8px 0;font-style:italic}
+.stats-note{font-size:9px;color:#334455;text-align:center;line-height:1.5}
+#stats-clear-btn{padding:8px;font-size:11px;font-weight:700;border-radius:8px;cursor:pointer;touch-action:manipulation;border:1px solid rgba(255,80,80,.3);background:rgba(255,80,80,.08);color:#ff6666;min-height:36px}
+#stats-close-btn{padding:8px;font-size:11px;font-weight:700;border-radius:8px;cursor:pointer;touch-action:manipulation;border:1px solid rgba(100,140,255,.4);background:rgba(100,140,255,.1);color:#a0c0ff;min-height:36px;flex:2}
+.stats-btn-row{display:flex;gap:8px}
+button.stats-btn{border-color:rgba(255,215,0,.35);color:#ffd700}
+button.stats-btn:active{background:rgba(255,215,0,.15)}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="topbar">
+  <div id="fps-wrap" class="stat">
+    <span class="stat-val" id="fps-val">--</span>
+    <div id="fps-spark"></div>
+    <span style="font-size:8px;color:#556688">FPS</span>
+  </div>
+  <div class="stat"><span class="stat-val" id="count-val">0</span>PTCL</div>
+  <div class="stat"><span class="stat-val" id="emit-val">0</span>EMIT</div>
+  <div id="backend-badge">WORKER</div>
+  <div id="qual-badge">MED</div>
+  <div id="perf-badge">⚡ PERF</div>
+  <div id="audio-bar-wrap"><div id="audio-bar"><div id="audio-fill"></div></div></div>
+  <div class="spacer"></div>
+  <button id="menu-btn" onclick="toggleDrawer()">☰</button>
+</div>
+
+<!-- G-Well Triangle Modal -->
+<div class="modal-overlay" id="well-modal">
+  <div class="modal-box">
+    <div class="modal-title">🕳 G-Well Triangle</div>
+    <div class="modal-label">Particles to spawn (max 2,500,000):</div>
+    <input class="modal-input" type="number" id="well-modal-count" value="500000" min="1" max="2500000" step="1000">
+    <div class="modal-row">
+      <button class="modal-btn confirm" onclick="confirmWellTriangle()">✓ Launch</button>
+      <button class="modal-btn cancel" onclick="closeWellModal()">✕ Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Benchmark overlay -->
+<div id="bench-overlay">
+  <div id="bench-inner">
+    <div id="bench-title">📊 BENCHMARK v10</div>
+    <div id="bench-cfg">
+      <div class="bench-cfg-row"><label>Tiers (comma-sep):</label><input type="text" id="bench-tiers" value="10000,50000,100000,500000,1000000,2500000"></div>
+      <div class="bench-cfg-row"><label>Secs per tier:</label><input type="number" id="bench-secs" value="3" min="1" max="10"></div>
+    </div>
+    <div class="bench-hdr"><span>Count</span><span style="color:#ff8844">Perf OFF / High</span><span style="color:#34d399">Perf ON / Low</span></div>
+    <div id="bench-rows"></div>
+    <div class="bench-status" id="bench-status">Configure tiers above, then press Bench</div>
+    <div class="bench-btn-row">
+      <button id="bench-run" onclick="startBenchmark()">Run Benchmark</button>
+      <button id="bench-close" onclick="closeBench()">✕ Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="drawer">
+  <div id="drawer-handle"></div>
+  <div id="drawer-label" onclick="toggleDrawer()">
+    <span>CONTROLS v10</span><span id="drawer-toggle">▲ Show</span>
+  </div>
+  <div id="drawer-content">
+    <div class="btn-row">
+      <button onclick="addParticles(1)">+1</button>
+      <button onclick="addParticles(10)">+10</button>
+      <button onclick="addParticles(100)">+100</button>
+      <button onclick="addParticles(1000)">+1K</button>
+      <button onclick="addParticles(5000)">+5K</button>
+      <button onclick="bigBang()">💥 Big Bang</button>
+      <button onclick="clearAll()">✕ Clear</button>
+    </div>
+    <div class="btn-row">
+      <button id="btn-gravity" class="active" onclick="setMode('gravity')">🌍 Grav</button>
+      <button id="btn-orbit" onclick="setMode('orbit')">🌀 Orbit</button>
+      <button id="btn-zerog" onclick="setMode('zerog')">🚀 Zero-G</button>
+      <button id="btn-vortex" onclick="setMode('vortex')">🌪 Vortex</button>
+      <button id="btn-repulse" onclick="setMode('repulse')">💫 Repulse</button>
+      <button id="btn-fireworks" onclick="setMode('fireworks')">🎆 FW</button>
+      <button id="btn-constellation" onclick="setMode('constellation')">✦ Const.</button>
+      <button id="btn-wells" onclick="setMode('wells')">🕳 Wells</button>
+      <button id="btn-magnetic" onclick="setMode('magnetic')">🧲 Mag</button>
+    </div>
+    <div class="btn-row">
+      <button id="btn-emitter" onclick="toggleEmitterMode()">📍 Emitter</button>
+      <button onclick="clearEmitters()">✕ Emitters</button>
+      <button id="btn-well-mode" class="well-btn" onclick="toggleWellMode()">🕳 Place Well</button>
+      <button onclick="clearWells()">✕ Wells</button>
+      <button class="mic-btn" id="btn-mic" onclick="toggleMic()">🎤 Mic</button>
+      <button class="screenshot-btn" onclick="takeScreenshot()">📷 Save</button>
+      <button class="bench-btn" id="btn-bench" onclick="openBench()">📊 Bench</button>
+      <button class="explode-btn" onclick="triggerExplode()">💥 Explode</button>
+      <button class="stats-btn" onclick="openStats()">🏆 My Best</button>
+    </div>
+    <div class="palette-row">
+      <button class="pal-btn active" data-pal="cosmic" onclick="setPalette('cosmic')">✦ Cosmic</button>
+      <button class="pal-btn" data-pal="fire" onclick="setPalette('fire')">🔥 Fire</button>
+      <button class="pal-btn" data-pal="ocean" onclick="setPalette('ocean')">🌊 Ocean</button>
+      <button class="pal-btn" data-pal="neon" onclick="setPalette('neon')">⚡ Neon</button>
+    </div>
+    <div class="qual-row">
+      <button class="qual-btn" id="ql-low" onclick="setQuality(0.25)">Low</button>
+      <button class="qual-btn active" id="ql-med" onclick="setQuality(0.5)">Med</button>
+      <button class="qual-btn" id="ql-high" onclick="setQuality(1.0)">High</button>
+    </div>
+    <div class="preset-row">
+      <button class="preset-btn" onclick="loadPreset('fireworks')">🎆 Fireworks</button>
+      <button class="preset-btn" onclick="loadPreset('ocean')">🌊 Ocean Drift</button>
+      <button class="preset-btn" onclick="loadPreset('neon')">⚡ Neon Storm</button>
+      <button class="preset-btn" onclick="loadPreset('constellation')">✦ Constellation</button>
+      <button class="preset-btn" onclick="loadPreset('galaxy')">🌌 Galaxy</button>
+      <button class="preset-btn" onclick="loadPreset('magnetic')">🧲 Mag Field</button>
+      <button class="preset-btn" onclick="loadPreset('perftest')">🏎 Perf Test</button>
+      <button class="preset-btn" onclick="openWellModal()">🕳 Well Triangle</button>
+    </div>
+    <div class="slider-group">
+      <div class="slider-row"><label>Trail Len</label><input type="range" id="sl-trail" min="0" max="1.0" step="0.02" value="0.5" oninput="updateSlider('trail',this.value)"><span class="slider-val" id="sv-trail">0.50</span></div>
+      <div class="slider-row"><label>Speed</label><input type="range" id="sl-speed" min="0.1" max="3.0" step="0.05" value="1.0" oninput="updateSlider('speed',this.value)"><span class="slider-val" id="sv-speed">1.0</span></div>
+      <div class="slider-row"><label>Gravity</label><input type="range" id="sl-gravity" min="0" max="2.0" step="0.05" value="0.5" oninput="updateSlider('gravity',this.value)"><span class="slider-val" id="sv-gravity">0.5</span></div>
+      <div class="slider-row"><label>Particle Size</label><input type="range" id="sl-size" min="0.5" max="5.0" step="0.1" value="1.5" oninput="updateSlider('size',this.value)"><span class="slider-val" id="sv-size">1.5</span></div>
+      <div class="slider-row"><label>Glow</label><input type="range" id="sl-glow" min="0" max="1.0" step="0.05" value="0.3" oninput="updateSlider('glow',this.value)"><span class="slider-val" id="sv-glow">0.30</span></div>
+      <div class="slider-row"><label>Cap</label><input type="range" id="sl-cap" min="1000" max="2500000" step="1000" value="20000" oninput="updateSlider('cap',this.value)"><span class="slider-val" id="sv-cap">20K</span></div>
+    </div>
+    <div class="btn-row">
+      <button class="perf-btn active" id="btn-perf" onclick="togglePerfMode()">⚡ Perf Mode</button>
+    </div>
+    <div id="legend">
+      <span class="leg-dot" id="ld0" style="background:#0d0d40"></span>slow
+      <span class="leg-dot" id="ld1" style="background:#261a66"></span>med
+      <span class="leg-dot" id="ld2" style="background:#7233cc"></span>fast
+      <span class="leg-dot" id="ld3" style="background:#ffffff"></span>max
+    </div>
+    <div id="hint">G/O/Z/V/R/F/N/W/M=mode | E=emitter | X=explode | P=perf | S=save | B=bench | H=my best</div>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="explode-flash"></div>
+
+<!-- Stats / My Best Modal -->
+<div id="stats-overlay">
+  <div id="stats-inner">
+    <div id="stats-title">🏆 Personal Best Runs</div>
+    <div id="stats-content"></div>
+    <div class="stats-note">Stats recorded locally on this device. Leaderboard coming in v15.</div>
+    <div class="stats-btn-row">
+      <button id="stats-close-btn" onclick="closeStats()">✕ Close</button>
+      <button id="stats-clear-btn" onclick="clearStats()">Clear All</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ═══ PALETTES [stop0=trail-fade, stop1=slow, stop2=med, stop3=fast, stop4=max] ═══
+const PALETTES={
+  cosmic:[[.05,.05,.25],[.15,.1,.5],[.45,.2,.9],[.7,.5,1],[1,1,1]],
+  fire:  [[.2,.02,.0],[.6,.1,.0],[.9,.4,.0],[1,.75,.1],[1,1,.9]],
+  ocean: [[.0,.05,.15],[.0,.2,.4],[.0,.55,.6],[.1,.85,.8],[.8,1,1]],
+  neon:  [[.15,.0,.2],[.6,.0,.5],[.9,.0,.8],[.5,.0,1],[1,.9,1]]
+};
+let currentPalette='cosmic';
+function buildPalUniform(name){
+  const s=PALETTES[name],a=new Float32Array(15);
+  for(let i=0;i<5;i++){a[i*3]=s[i][0];a[i*3+1]=s[i][1];a[i*3+2]=s[i][2];}
+  return a;
+}
+let palUniform=buildPalUniform('cosmic');
+
+// ═══ HARD MAX = 2.5M ═══
+const HARD_MAX=2500000;
+
+// ═══ DOUBLE-BUFFERED SharedArrayBuffers ═══
+// Two complete sets of physics buffers. Worker writes to WRITE buffer,
+// main thread reads from READ buffer. Swap each frame via Atomics.
+// CTRL layout: [0]=count_A, [1]=count_B, [2]=active_write (0 or 1), [3]=frame_ready
+const CTRL_COUNT_A=0,CTRL_COUNT_B=1,CTRL_WRITE=2,CTRL_READY=3;
+let sabCtrl,sabPxA,sabPyA,sabVxA,sabVyA,sabPrA,sabAgeA;
+let sabPxB,sabPyB,sabVxB,sabVyB,sabPrB,sabAgeB;
+let useSAB=false;
+function initSAB(){
+  try{
+    if(typeof SharedArrayBuffer==='undefined')return false;
+    sabCtrl=new Int32Array(new SharedArrayBuffer(16));// 4 int32s
+    // Buffer A
+    sabPxA=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    sabPyA=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    sabVxA=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    sabVyA=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    sabPrA=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    sabAgeA=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    // Buffer B
+    sabPxB=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    sabPyB=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    sabVxB=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    sabVyB=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    sabPrB=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    sabAgeB=new Float32Array(new SharedArrayBuffer(HARD_MAX*4));
+    Atomics.store(sabCtrl,CTRL_WRITE,0);// worker starts writing to A
+    return true;
+  }catch(e){return false;}
+}
+
+// ═══ WEB WORKER SOURCE ═══
+const WORKER_SRC=`'use strict';
+const HARD_MAX=2500000,CTRL_COUNT_A=0,CTRL_COUNT_B=1,CTRL_WRITE=2,CTRL_READY=3;
+let sabCtrl,sabPxA,sabPyA,sabVxA,sabVyA,sabPrA,sabAgeA;
+let sabPxB,sabPyB,sabVxB,sabVyB,sabPrB,sabAgeB;
+let useSAB=false;
+// Fallback arrays (no SAB)
+let fpx,fpy,fvx,fvy,fpr,fage;
+// Always-local arrays
+let life,ptype;
+let count=0,PM_MAX=20000,W=400,H=800;
+let mode='gravity',speedMul=1,gravStr=0.5;
+let emitters=[],wells=[];
+let audioBass=0,magT=0;
+// Chunked physics: process CHUNK_SIZE particles per tick, cycling
+const CHUNK_SIZE=500000;
+let chunkStart=0;
+// Spatial grid: flat Int32Array
+let gridHead,gridNext,GCELL=32,GW=0,GH=0;
+
+function rand(a,b){return a+(b-a)*Math.random();}
+function alloc(){
+  const n=Math.min(HARD_MAX,PM_MAX+10000);
+  if(!useSAB){fpx=new Float32Array(n);fpy=new Float32Array(n);fvx=new Float32Array(n);fvy=new Float32Array(n);fpr=new Float32Array(n);fage=new Float32Array(n);}
+  life=new Float32Array(n);ptype=new Uint8Array(n);
+  // Auto-scale grid cell size based on particle count
+  GCELL=PM_MAX>500000?64:PM_MAX>100000?48:32;
+  GW=Math.ceil(W/GCELL)+1;GH=Math.ceil(H/GCELL)+1;
+  gridHead=new Int32Array(GW*GH).fill(-1);
+  gridNext=new Int32Array(n).fill(-1);
+}
+// Write buffer accessors
+function getWriteBuf(){return useSAB?(Atomics.load(sabCtrl,CTRL_WRITE)===0?{px:sabPxA,py:sabPyA,vx:sabVxA,vy:sabVyA,pr:sabPrA,age:sabAgeA,ci:CTRL_COUNT_A}:{px:sabPxB,py:sabPyB,vx:sabVxB,vy:sabVyB,pr:sabPrB,age:sabAgeB,ci:CTRL_COUNT_B}):null;}
+function gx(i){if(useSAB){const b=getWriteBuf();return b.px[i];}return fpx[i];}
+function gy(i){if(useSAB){const b=getWriteBuf();return b.py[i];}return fpy[i];}
+function gvx(i){if(useSAB){const b=getWriteBuf();return b.vx[i];}return fvx[i];}
+function gvy(i){if(useSAB){const b=getWriteBuf();return b.vy[i];}return fvy[i];}
+function gr(i){if(useSAB){const b=getWriteBuf();return b.pr[i];}return fpr[i];}
+function ga(i){if(useSAB){const b=getWriteBuf();return b.age[i];}return fage[i];}
+function sx(i,v){if(useSAB){const b=getWriteBuf();b.px[i]=v;}else fpx[i]=v;}
+function sy(i,v){if(useSAB){const b=getWriteBuf();b.py[i]=v;}else fpy[i]=v;}
+function svx(i,v){if(useSAB){const b=getWriteBuf();b.vx[i]=v;}else fvx[i]=v;}
+function svy(i,v){if(useSAB){const b=getWriteBuf();b.vy[i]=v;}else fvy[i]=v;}
+function sr(i,v){if(useSAB){const b=getWriteBuf();b.pr[i]=v;}else fpr[i]=v;}
+function sa(i,v){if(useSAB){const b=getWriteBuf();b.age[i]=v;}else fage[i]=v;}
+function del(i){count--;sx(i,gx(count));sy(i,gy(count));svx(i,gvx(count));svy(i,gvy(count));sr(i,gr(count));sa(i,ga(count));life[i]=life[count];ptype[i]=ptype[count];}
+function addOne(X,Y,VX,VY,R){if(count>=PM_MAX)return;sx(count,X);sy(count,Y);svx(count,VX);svy(count,VY);sr(count,R);sa(count,0);life[count]=0;ptype[count]=0;count++;}
+function addRocket(){if(count>=PM_MAX)return;sx(count,W*.5+rand(-W*.3,W*.3));sy(count,H+5);svx(count,rand(-2,2));svy(count,rand(-12,-7)*speedMul);sr(count,rand(1.5,2.5));sa(count,0);life[count]=rand(60,120);ptype[count]=1;count++;}
+function burst(bx,by){const n=Math.min(40,PM_MAX-count);for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,spd=rand(2,8)*speedMul;addOne(bx,by,Math.cos(a)*spd,Math.sin(a)*spd,rand(0.8,1.8));ptype[count-1]=2;life[count-1]=rand(40,90);}}
+function magF(X,Y,t){
+  const W2=W*.5,H2=H*.5;let fx=0,fy=0;
+  const a1=t*.3,p1x=W2+Math.cos(a1)*W*.25,p1y=H2+Math.sin(a1)*H*.2;
+  const dx1=X-p1x,dy1=Y-p1y,r1=Math.sqrt(dx1*dx1+dy1*dy1)+1;
+  const m1x=Math.cos(a1+Math.PI*.5),m1y=Math.sin(a1+Math.PI*.5);
+  const d1=(dx1*m1x+dy1*m1y)/(r1*r1);
+  fx+=(3*d1*dx1/r1-m1x)/r1*800;fy+=(3*d1*dy1/r1-m1y)/r1*800;
+  const a2=-t*.2+Math.PI,p2x=W2+Math.cos(a2)*W*.2,p2y=H2+Math.sin(a2)*H*.25;
+  const dx2=X-p2x,dy2=Y-p2y,r2=Math.sqrt(dx2*dx2+dy2*dy2)+1;
+  const m2x=Math.cos(a2+Math.PI*.5),m2y=Math.sin(a2+Math.PI*.5);
+  const d2=(dx2*m2x+dy2*m2y)/(r2*r2);
+  fx+=(3*d2*dx2/r2-m2x)/r2*600;fy+=(3*d2*dy2/r2-m2y)/r2*600;
+  return [Math.max(-3,Math.min(3,fx)),Math.max(-3,Math.min(3,fy))];
+}
+function buildGrid(){
+  gridHead.fill(-1);
+  for(let i=0;i<count;i++){
+    const cx=Math.floor(gx(i)/GCELL),cy=Math.floor(gy(i)/GCELL);
+    if(cx<0||cx>=GW||cy<0||cy>=GH){gridNext[i]=-1;continue;}
+    const ci=cy*GW+cx;gridNext[i]=gridHead[ci];gridHead[ci]=i;
+  }
+}
+// Swap double buffers: copy write→read, then flip write index
+function swapBuffers(){
+  if(!useSAB)return;
+  const wb=Atomics.load(sabCtrl,CTRL_WRITE);
+  // Copy write buffer to read buffer
+  const wBuf=wb===0?{px:sabPxA,py:sabPyA,vx:sabVxA,vy:sabVyA,pr:sabPrA,age:sabAgeA}:{px:sabPxB,py:sabPyB,vx:sabVxB,vy:sabVyB,pr:sabPrB,age:sabAgeB};
+  const rBuf=wb===0?{px:sabPxB,py:sabPyB,vx:sabVxB,vy:sabVyB,pr:sabPrB,age:sabAgeB}:{px:sabPxA,py:sabPyA,vx:sabVxA,vy:sabVyA,pr:sabPrA,age:sabAgeA};
+  rBuf.px.set(wBuf.px.subarray(0,count));
+  rBuf.py.set(wBuf.py.subarray(0,count));
+  rBuf.vx.set(wBuf.vx.subarray(0,count));
+  rBuf.vy.set(wBuf.vy.subarray(0,count));
+  rBuf.pr.set(wBuf.pr.subarray(0,count));
+  rBuf.age.set(wBuf.age.subarray(0,count));
+  // Update read count
+  const rci=wb===0?CTRL_COUNT_B:CTRL_COUNT_A;
+  Atomics.store(sabCtrl,rci,count);
+  // Signal ready
+  Atomics.store(sabCtrl,CTRL_READY,1);
+}
+function step(dt){
+  const sm=speedMul*dt,grav=gravStr*dt,W2=W*.5,H2=H*.5;
+  // Skip spatial grid for very large counts (overhead > benefit)
+  const doCol=count<4000&&count<PM_MAX;
+  const doGrid=doCol&&count<2000;
+  magT+=dt*.016;
+  // Emitter spawning
+  for(const em of emitters){if(count<PM_MAX&&Math.random()<.5)addOne(em.x+rand(-4,4),em.y+rand(-4,4),rand(-2,2)*sm,rand(-2,2)*sm,rand(1,2.5));}
+  if(mode==='fireworks'&&Math.random()<.04*speedMul&&count<PM_MAX-50)addRocket();
+  if(doGrid)buildGrid();
+  // Chunked processing: for large counts, process CHUNK_SIZE per tick
+  const useChunks=count>CHUNK_SIZE;
+  const start=useChunks?chunkStart:0;
+  const end=useChunks?Math.min(start+CHUNK_SIZE,count):count;
+  if(useChunks){chunkStart=end>=count?0:end;}
+  for(let i=end-1;i>=start;i--){
+    let X=gx(i),Y=gy(i),VX=gvx(i),VY=gvy(i);const R=gr(i);
+    sa(i,(ga(i)+dt)%1000);
+    if(ptype[i]===1){life[i]--;VY+=grav*.4;if(life[i]<=0||VY>0){burst(X,Y);del(i);continue;}}
+    else if(ptype[i]===2){life[i]--;if(life[i]<=0){del(i);continue;}VY+=grav*.6;}
+    if(mode==='gravity'){VY+=grav;}
+    else if(mode==='orbit'){const dx=X-W2,dy=Y-H2,d2=dx*dx+dy*dy+1,f=8000*sm/d2;VX-=dx*f;VY-=dy*f;VX+=dy*.015*sm;VY-=dx*.015*sm;}
+    else if(mode==='vortex'){const dx=X-W2,dy=Y-H2,d=Math.sqrt(dx*dx+dy*dy)+1;VX+=(-dy/d)*.8*sm;VY+=(dx/d)*.8*sm;VX-=dx*.002*sm;VY-=dy*.002*sm;}
+    else if(mode==='repulse'){const dx=X-W2,dy=Y-H2,d2=dx*dx+dy*dy+1,f=6000*sm/d2;VX+=dx*f;VY+=dy*f;}
+    else if(mode==='constellation'){VX+=rand(-.3,.3)*sm;VY+=rand(-.3,.3)*sm;VY+=grav*.05;}
+    else if(mode==='fireworks'){VY+=grav*.5;}
+    else if(mode==='wells'){for(const w of wells){const dx=w.x-X,dy=w.y-Y,d2=dx*dx+dy*dy+100,f=Math.min(5000/d2,3)*sm;VX+=dx*f;VY+=dy*f;}VY+=grav*.1;}
+    else if(mode==='magnetic'){
+      const [mfx,mfy]=magF(X,Y,magT);
+      const spd=Math.sqrt(VX*VX+VY*VY)+.01;
+      const mag=Math.sqrt(mfx*mfx+mfy*mfy)+.001;
+      VX=VX*.92+(mfx/mag)*spd*.08+mfx*.04*sm;
+      VY=VY*.92+(mfy/mag)*spd*.08+mfy*.04*sm;
+      VY+=grav*.02;
+    }
+    if(audioBass>.3){const dx=X-W2,dy=Y-H2,d=Math.sqrt(dx*dx+dy*dy)+1;VX+=(dx/d)*audioBass*3*sm;VY+=(dy/d)*audioBass*3*sm;}
+    const maxS=mode==='constellation'?4:mode==='magnetic'?6:40;
+    const s2=VX*VX+VY*VY;if(s2>maxS*maxS){const s=maxS/Math.sqrt(s2);VX*=s;VY*=s;}
+    const damp=mode==='constellation'?.97:mode==='magnetic'?.985:.995;
+    VX*=damp;VY*=damp;X+=VX*sm;Y+=VY*sm;
+    if(X<R){X=R;VX=Math.abs(VX)*.6;}else if(X>W-R){X=W-R;VX=-Math.abs(VX)*.6;}
+    if(Y<R){Y=R;VY=Math.abs(VY)*.6;}else if(Y>H-R){Y=H-R;VY=-Math.abs(VY)*.6;}
+    if(doGrid){
+      const cx=Math.floor(X/GCELL),cy=Math.floor(Y/GCELL);
+      for(let ox=-1;ox<=1;ox++){for(let oy=-1;oy<=1;oy++){
+        const nx=cx+ox,ny=cy+oy;if(nx<0||nx>=GW||ny<0||ny>=GH)continue;
+        let j=gridHead[ny*GW+nx];
+        while(j>=0){if(j!==i){const dx=gx(j)-X,dy=gy(j)-Y,md=gr(j)+R,d2=dx*dx+dy*dy;if(d2<md*md&&d2>.001){const d=Math.sqrt(d2),nx2=dx/d,ny2=dy/d,rel=(VX-gvx(j))*nx2+(VY-gvy(j))*ny2;if(rel>0){VX-=rel*nx2*.5;VY-=rel*ny2*.5;}}}j=gridNext[j];}
+      }}
+    }
+    sx(i,X);sy(i,Y);svx(i,VX);svy(i,VY);
+  }
+  const now=Date.now();wells=wells.filter(w=>!w.expires||w.expires>now);
+  if(useSAB){
+    const wb=Atomics.load(sabCtrl,CTRL_WRITE);
+    Atomics.store(sabCtrl,wb===0?CTRL_COUNT_A:CTRL_COUNT_B,count);
+    swapBuffers();
+  }else{
+    self.postMessage({type:'frame',count,px:fpx.slice(0,count),py:fpy.slice(0,count),vx:fvx.slice(0,count),vy:fvy.slice(0,count),pr:fpr.slice(0,count),age:fage.slice(0,count)});
+  }
+  self.postMessage({type:'count',count});
+}
+self.onmessage=function(e){
+  const d=e.data;
+  if(d.type==='init'){
+    W=d.W;H=d.H;
+    if(d.sabCtrl){
+      sabCtrl=new Int32Array(d.sabCtrl);
+      sabPxA=new Float32Array(d.sabPxA);sabPyA=new Float32Array(d.sabPyA);
+      sabVxA=new Float32Array(d.sabVxA);sabVyA=new Float32Array(d.sabVyA);
+      sabPrA=new Float32Array(d.sabPrA);sabAgeA=new Float32Array(d.sabAgeA);
+      sabPxB=new Float32Array(d.sabPxB);sabPyB=new Float32Array(d.sabPyB);
+      sabVxB=new Float32Array(d.sabVxB);sabVyB=new Float32Array(d.sabVyB);
+      sabPrB=new Float32Array(d.sabPrB);sabAgeB=new Float32Array(d.sabAgeB);
+      useSAB=true;
+    }
+    alloc();self.postMessage({type:'backend',useSAB});
+  }else if(d.type==='config'){
+    const c=d.cfg;
+    if(c.W){W=c.W;H=c.H;GCELL=PM_MAX>500000?64:PM_MAX>100000?48:32;GW=Math.ceil(W/GCELL)+1;GH=Math.ceil(H/GCELL)+1;gridHead=new Int32Array(GW*GH).fill(-1);}
+    if(c.mode)mode=c.mode;
+    if(c.speedMul!==undefined)speedMul=c.speedMul;
+    if(c.gravStr!==undefined)gravStr=c.gravStr;
+    if(c.maxParticles!==undefined){PM_MAX=Math.min(c.maxParticles,HARD_MAX);alloc();}
+    if(c.audioBass!==undefined)audioBass=c.audioBass;
+  }else if(d.type==='step'){step(d.dt);}
+  else if(d.type==='add'){for(let i=0;i<d.n;i++)addOne(Math.random()*W,Math.random()*H*.6+H*.1,(Math.random()-.5)*6,(Math.random()-.5)*6,d.r||Math.random()*1.5+.8);if(useSAB){const wb=Atomics.load(sabCtrl,CTRL_WRITE);Atomics.store(sabCtrl,wb===0?CTRL_COUNT_A:CTRL_COUNT_B,count);}self.postMessage({type:'count',count});}
+  else if(d.type==='bigbang'){const W2=W*.5,H2=H*.5;for(let i=0;i<count;i++){const dx=gx(i)-W2,dy=gy(i)-H2,d=Math.sqrt(dx*dx+dy*dy)+1;svx(i,dx/d*20);svy(i,dy/d*20);}}
+  else if(d.type==='clear'){count=0;chunkStart=0;if(useSAB){Atomics.store(sabCtrl,CTRL_COUNT_A,0);Atomics.store(sabCtrl,CTRL_COUNT_B,0);}self.postMessage({type:'count',count:0});}
+  else if(d.type==='mouse'){const mx=d.x,my=d.y,att=d.attract;for(let i=0;i<count;i++){const dx=mx-gx(i),dy=my-gy(i),d2=dx*dx+dy*dy+1,f=(att?1:-1)*Math.min(3000/d2,2)*d.dt;svx(i,gvx(i)+dx*f);svy(i,gvy(i)+dy*f);}}
+  else if(d.type==='addEmitter'){emitters.push({x:d.x,y:d.y});self.postMessage({type:'emitterCount',count:emitters.length});}
+  else if(d.type==='removeEmitter'){let best=-1,bd=1e9;for(let i=0;i<emitters.length;i++){const dx=emitters[i].x-d.x,dy=emitters[i].y-d.y,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;best=i;}}if(best>=0)emitters.splice(best,1);self.postMessage({type:'emitterCount',count:emitters.length});}
+  else if(d.type==='clearEmitters'){emitters=[];self.postMessage({type:'emitterCount',count:0});}
+  else if(d.type==='addWell'){wells.push({x:d.x,y:d.y,expires:d.expires||0});self.postMessage({type:'wellCount',count:wells.length});}
+  else if(d.type==='removeWell'){let best=-1,bd=1e9;for(let i=0;i<wells.length;i++){const dx=wells[i].x-d.x,dy=wells[i].y-d.y,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;best=i;}}if(best>=0)wells.splice(best,1);self.postMessage({type:'wellCount',count:wells.length});}
+  else if(d.type==='clearWells'){wells=[];self.postMessage({type:'wellCount',count:0});}
+  else if(d.type==='setMax'){PM_MAX=Math.min(d.max,HARD_MAX);GCELL=PM_MAX>500000?64:PM_MAX>100000?48:32;GW=Math.ceil(W/GCELL)+1;GH=Math.ceil(H/GCELL)+1;gridHead=new Int32Array(GW*GH).fill(-1);}
+  else if(d.type==='addWells'){for(const w of d.wells){wells.push(w);}self.postMessage({type:'wellCount',count:wells.length});}
+  else if(d.type==='explode'){const cx=d.cx,cy=d.cy,force=d.force||18;for(let i=0;i<count;i++){const dx=gx(i)-cx,dy=gy(i)-cy,dist=Math.sqrt(dx*dx+dy*dy)+1;const spd=force*(1+50/dist);svx(i,dx/dist*spd);svy(i,dy/dist*spd);}}
+};`;
+
+// ═══ WEBGL SETUP ═══
+const canvas=document.getElementById('canvas');
+const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||window.innerWidth<700;
+let qualityScale=isMobile?.5:1.0;
+
+let gl=canvas.getContext('webgl2',{antialias:false,alpha:false,premultipliedAlpha:false,preserveDrawingBuffer:true});
+const isGL2=!!gl;let ext=null;
+if(!gl){
+  gl=canvas.getContext('webgl',{antialias:false,alpha:false,premultipliedAlpha:false,preserveDrawingBuffer:true});
+  ext=gl&&gl.getExtension('ANGLE_instanced_arrays');
+  if(!ext){document.body.innerHTML='<p style="color:#fff;padding:40px">WebGL not supported.</p>';throw 0;}
+}
+
+// ═══ SHADERS ═══
+// Instanced quad particle shader (< POINTS_THRESH)
+const VS_P=isGL2?`#version 300 es
+in vec2 a_quad;in vec2 a_pos;in float a_rad;in float a_spd;in float a_age;
+uniform vec2 u_res;uniform vec3 u_pal[5];
+out vec2 v_uv;out vec4 v_col;
+vec3 palLookup(float t){float s=clamp(t,0.,1.)*4.;int i=int(s);int j=min(i+1,4);return mix(u_pal[i],u_pal[j],s-float(i));}
+void main(){v_uv=a_quad;float t=mix(clamp(a_spd/18.,0.,1.),mod(a_age,200.)/200.,.25);v_col=vec4(palLookup(t*.85),.92);vec2 w=a_pos+a_quad*a_rad;vec2 c=(w/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);}`:
+`attribute vec2 a_quad;attribute vec2 a_pos;attribute float a_rad;attribute float a_spd;attribute float a_age;
+uniform vec2 u_res;uniform vec3 u_pal[5];varying vec2 v_uv;varying vec4 v_col;
+vec3 palLookup(float t){float s=clamp(t,0.,1.)*4.;vec3 c0=u_pal[0],c1=u_pal[1],c2=u_pal[2],c3=u_pal[3],c4=u_pal[4];if(s<1.)return mix(c0,c1,s);if(s<2.)return mix(c1,c2,s-1.);if(s<3.)return mix(c2,c3,s-2.);return mix(c3,c4,s-3.);}
+void main(){v_uv=a_quad;float t=mix(clamp(a_spd/18.,0.,1.),mod(a_age,200.)/200.,.25);v_col=vec4(palLookup(t*.85),.92);vec2 w=a_pos+a_quad*a_rad;vec2 c=(w/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);}`;
+const FS_P=isGL2?`#version 300 es
+precision mediump float;in vec2 v_uv;in vec4 v_col;uniform float u_glow;out vec4 o;
+void main(){float d=dot(v_uv,v_uv);if(d>1.)discard;float core=1.-smoothstep(0.,.4,d);float glow=1.-smoothstep(0.,1.,d);float a=mix(glow,core+glow*.6,u_glow)*v_col.a;o=vec4(v_col.rgb*a,a);}`:
+`precision mediump float;varying vec2 v_uv;varying vec4 v_col;uniform float u_glow;
+void main(){float d=dot(v_uv,v_uv);if(d>1.)discard;float core=1.-smoothstep(0.,.4,d);float glow=1.-smoothstep(0.,1.,d);float a=mix(glow,core+glow*.6,u_glow)*v_col.a;gl_FragColor=vec4(v_col.rgb*a,a);}`;
+
+// GL_POINTS shader — 1 vertex per particle, cheapest possible
+const VS_PT=isGL2?`#version 300 es
+in vec2 a_pos;in float a_spd;in float a_age;in float a_rad;
+uniform vec2 u_res;uniform vec3 u_pal[5];uniform float u_pts;
+out vec4 v_col;
+vec3 palLookup(float t){float s=clamp(t,0.,1.)*4.;int i=int(s);int j=min(i+1,4);return mix(u_pal[i],u_pal[j],s-float(i));}
+void main(){float t=mix(clamp(a_spd/18.,0.,1.),mod(a_age,200.)/200.,.25);v_col=vec4(palLookup(t*.85),.85);vec2 c=(a_pos/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);gl_PointSize=max(1.,a_rad*u_pts);}`:
+`attribute vec2 a_pos;attribute float a_spd;attribute float a_age;attribute float a_rad;
+uniform vec2 u_res;uniform vec3 u_pal[5];uniform float u_pts;varying vec4 v_col;
+vec3 palLookup(float t){float s=clamp(t,0.,1.)*4.;vec3 c0=u_pal[0],c1=u_pal[1],c2=u_pal[2],c3=u_pal[3],c4=u_pal[4];if(s<1.)return mix(c0,c1,s);if(s<2.)return mix(c1,c2,s-1.);if(s<3.)return mix(c2,c3,s-2.);return mix(c3,c4,s-3.);}
+void main(){float t=mix(clamp(a_spd/18.,0.,1.),mod(a_age,200.)/200.,.25);v_col=vec4(palLookup(t*.85),.85);vec2 c=(a_pos/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);gl_PointSize=max(1.,a_rad*u_pts);}`;
+const FS_PT=isGL2?`#version 300 es
+precision mediump float;in vec4 v_col;out vec4 o;
+void main(){vec2 uv=gl_PointCoord*2.-1.;float d=dot(uv,uv);if(d>1.)discard;o=vec4(v_col.rgb*(1.-d*.5),v_col.a);}`:
+`precision mediump float;varying vec4 v_col;
+void main(){vec2 uv=gl_PointCoord*2.-1.;float d=dot(uv,uv);if(d>1.)discard;gl_FragColor=vec4(v_col.rgb*(1.-d*.5),v_col.a);}`;
+
+// Ultra-simple flat shader for LOD > 200K (no distance calc at all)
+const VS_FLAT=isGL2?`#version 300 es
+in vec2 a_pos;in float a_spd;in float a_age;
+uniform vec2 u_res;uniform vec3 u_pal[5];
+out vec4 v_col;
+vec3 palLookup(float t){float s=clamp(t,0.,1.)*4.;int i=int(s);int j=min(i+1,4);return mix(u_pal[i],u_pal[j],s-float(i));}
+void main(){float t=clamp(a_spd/18.,0.,1.);v_col=vec4(palLookup(t*.85),.8);vec2 c=(a_pos/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);gl_PointSize=1.0;}`:
+`attribute vec2 a_pos;attribute float a_spd;attribute float a_age;
+uniform vec2 u_res;uniform vec3 u_pal[5];varying vec4 v_col;
+vec3 palLookup(float t){float s=clamp(t,0.,1.)*4.;vec3 c0=u_pal[0],c1=u_pal[1],c2=u_pal[2],c3=u_pal[3],c4=u_pal[4];if(s<1.)return mix(c0,c1,s);if(s<2.)return mix(c1,c2,s-1.);if(s<3.)return mix(c2,c3,s-2.);return mix(c3,c4,s-3.);}
+void main(){float t=clamp(a_spd/18.,0.,1.);v_col=vec4(palLookup(t*.85),.8);vec2 c=(a_pos/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);gl_PointSize=1.0;}`;
+const FS_FLAT=isGL2?`#version 300 es
+precision lowp float;in vec4 v_col;out vec4 o;
+void main(){o=v_col;}`:
+`precision lowp float;varying vec4 v_col;
+void main(){gl_FragColor=v_col;}`;
+
+const VS_FADE=isGL2?`#version 300 es\nin vec2 a_p;void main(){gl_Position=vec4(a_p,0,1);}`:
+`attribute vec2 a_p;void main(){gl_Position=vec4(a_p,0,1);}`;
+const FS_FADE=isGL2?`#version 300 es\nprecision mediump float;uniform float u_a;uniform vec3 u_fc;out vec4 o;void main(){o=vec4(u_fc,u_a);}`:
+`precision mediump float;uniform float u_a;uniform vec3 u_fc;void main(){gl_FragColor=vec4(u_fc,u_a);}`;
+
+const VS_STAR=isGL2?`#version 300 es\nin vec2 a_p;in float a_b;uniform vec2 u_res;out float v_b;void main(){v_b=a_b;vec2 c=(a_p/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);gl_PointSize=1.5;}`:
+`attribute vec2 a_p;attribute float a_b;uniform vec2 u_res;varying float v_b;void main(){v_b=a_b;vec2 c=(a_p/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);gl_PointSize=1.5;}`;
+const FS_STAR=isGL2?`#version 300 es\nprecision mediump float;in float v_b;out vec4 o;void main(){o=vec4(v_b,v_b,v_b+.1,v_b*.8);}`:
+`precision mediump float;varying float v_b;void main(){gl_FragColor=vec4(v_b,v_b,v_b+.1,v_b*.8);}`;
+
+const VS_RING=isGL2?`#version 300 es\nin vec2 a_quad;in vec2 a_pos;uniform vec2 u_res;out vec2 v_uv;void main(){v_uv=a_quad;vec2 w=a_pos+a_quad*18.;vec2 c=(w/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);}`:
+`attribute vec2 a_quad;attribute vec2 a_pos;uniform vec2 u_res;varying vec2 v_uv;void main(){v_uv=a_quad;vec2 w=a_pos+a_quad*18.;vec2 c=(w/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);}`;
+const FS_RING=isGL2?`#version 300 es\nprecision mediump float;in vec2 v_uv;uniform float u_t;out vec4 o;void main(){float d=length(v_uv);float ring=smoothstep(.6,.7,d)-smoothstep(.85,.95,d);o=vec4(.6,.3,1.,ring*(.6+.4*sin(u_t*3.)));}`:
+`precision mediump float;varying vec2 v_uv;uniform float u_t;void main(){float d=length(v_uv);float ring=smoothstep(.6,.7,d)-smoothstep(.85,.95,d);gl_FragColor=vec4(.6,.3,1.,ring*(.6+.4*sin(u_t*3.)));}`;
+
+const VS_WELL=isGL2?`#version 300 es\nin vec2 a_quad;in vec2 a_pos;uniform vec2 u_res;out vec2 v_uv;void main(){v_uv=a_quad;vec2 w=a_pos+a_quad*22.;vec2 c=(w/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);}`:
+`attribute vec2 a_quad;attribute vec2 a_pos;uniform vec2 u_res;varying vec2 v_uv;void main(){v_uv=a_quad;vec2 w=a_pos+a_quad*22.;vec2 c=(w/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);}`;
+const FS_WELL=isGL2?`#version 300 es\nprecision mediump float;in vec2 v_uv;uniform float u_t;out vec4 o;void main(){float d=length(v_uv);float ring=smoothstep(.55,.65,d)-smoothstep(.8,.9,d);float inner=1.-smoothstep(0.,.3,d);o=vec4(1.,.6,.1,(ring+inner*.3)*(.5+.5*sin(u_t*4.)));}`:
+`precision mediump float;varying vec2 v_uv;uniform float u_t;void main(){float d=length(v_uv);float ring=smoothstep(.55,.65,d)-smoothstep(.8,.9,d);float inner=1.-smoothstep(0.,.3,d);gl_FragColor=vec4(1.,.6,.1,(ring+inner*.3)*(.5+.5*sin(u_t*4.)));}`;
+
+const VS_MAG=isGL2?`#version 300 es\nin vec2 a_p;in float a_alpha;uniform vec2 u_res;out float v_a;void main(){v_a=a_alpha;vec2 c=(a_p/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);}`:
+`attribute vec2 a_p;attribute float a_alpha;uniform vec2 u_res;varying float v_a;void main(){v_a=a_alpha;vec2 c=(a_p/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);}`;
+const FS_MAG=isGL2?`#version 300 es\nprecision mediump float;in float v_a;uniform float u_t;out vec4 o;void main(){o=vec4(.3,.5,1.,v_a*(.4+.2*sin(u_t*2.)));}`:
+`precision mediump float;varying float v_a;uniform float u_t;void main(){gl_FragColor=vec4(.3,.5,1.,v_a*(.4+.2*sin(u_t*2.)));}`;
+
+const VS_LINE=isGL2?`#version 300 es\nin vec2 a_p;in float a_alpha;uniform vec2 u_res;out float v_a;void main(){v_a=a_alpha;vec2 c=(a_p/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);}`:
+`attribute vec2 a_p;attribute float a_alpha;uniform vec2 u_res;varying float v_a;void main(){v_a=a_alpha;vec2 c=(a_p/u_res)*2.-1.;gl_Position=vec4(c.x,-c.y,0,1);}`;
+const FS_LINE=isGL2?`#version 300 es\nprecision mediump float;in float v_a;uniform vec3 u_lc;uniform float u_t;out vec4 o;void main(){o=vec4(u_lc,v_a*(.7+.3*sin(u_t*1.5)));}`:
+`precision mediump float;varying float v_a;uniform vec3 u_lc;uniform float u_t;void main(){gl_FragColor=vec4(u_lc,v_a*(.7+.3*sin(u_t*1.5)));}`;
+
+function mkS(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(s));return s;}
+function mkP(vs,fs){const p=gl.createProgram();gl.attachShader(p,mkS(gl.VERTEX_SHADER,vs));gl.attachShader(p,mkS(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(p));return p;}
+function locs(prog,attrs,unis){const o={};for(const a of attrs)o[a]=gl.getAttribLocation(prog,a);for(const u of unis)o[u]=gl.getUniformLocation(prog,u);return o;}
+
+const progP=mkP(VS_P,FS_P),progPT=mkP(VS_PT,FS_PT),progFlat=mkP(VS_FLAT,FS_FLAT);
+const progFade=mkP(VS_FADE,FS_FADE),progStar=mkP(VS_STAR,FS_STAR);
+const progRing=mkP(VS_RING,FS_RING),progWell=mkP(VS_WELL,FS_WELL);
+const progMag=mkP(VS_MAG,FS_MAG),progLine=mkP(VS_LINE,FS_LINE);
+
+const pL=locs(progP,['a_quad','a_pos','a_rad','a_spd','a_age'],['u_res','u_glow','u_pal']);
+const ptL=locs(progPT,['a_pos','a_spd','a_age','a_rad'],['u_res','u_pal','u_pts']);
+const flL=locs(progFlat,['a_pos','a_spd','a_age'],['u_res','u_pal']);
+const fL=locs(progFade,['a_p'],['u_a','u_fc']);
+const sL=locs(progStar,['a_p','a_b'],['u_res']);
+const rL=locs(progRing,['a_quad','a_pos'],['u_res','u_t']);
+const wL=locs(progWell,['a_quad','a_pos'],['u_res','u_t']);
+const mgL=locs(progMag,['a_p','a_alpha'],['u_res','u_t']);
+const lnL=locs(progLine,['a_p','a_alpha'],['u_res','u_lc','u_t']);
+
+const SEGS=isMobile?4:6;
+const qv=[];for(let i=0;i<SEGS;i++){const a0=i/SEGS*Math.PI*2,a1=(i+1)/SEGS*Math.PI*2;qv.push(0,0,Math.cos(a0),Math.sin(a0),Math.cos(a1),Math.sin(a1));}
+const quadBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,quadBuf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(qv),gl.STATIC_DRAW);
+const fsBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,fsBuf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+
+const SC=200;const sPos=new Float32Array(SC*2),sBright=new Float32Array(SC);
+function initStars(w,h){for(let i=0;i<SC;i++){sPos[i*2]=Math.random()*w;sPos[i*2+1]=Math.random()*h;sBright[i]=Math.random()*.7+.3;}}
+const sBuf=gl.createBuffer(),sBrBuf=gl.createBuffer();
+
+// Instance buffers — DYNAMIC_DRAW, minimal stride: pos(2) + rad(1) + spd(1) + age(1)
+const iPos=new Float32Array(HARD_MAX*2),iRad=new Float32Array(HARD_MAX);
+const iSpd=new Float32Array(HARD_MAX),iAge=new Float32Array(HARD_MAX);
+const iPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,iPosBuf);gl.bufferData(gl.ARRAY_BUFFER,iPos,gl.DYNAMIC_DRAW);
+const iRadBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,iRadBuf);gl.bufferData(gl.ARRAY_BUFFER,iRad,gl.DYNAMIC_DRAW);
+const iSpdBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,iSpdBuf);gl.bufferData(gl.ARRAY_BUFFER,iSpd,gl.DYNAMIC_DRAW);
+const iAgeBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,iAgeBuf);gl.bufferData(gl.ARRAY_BUFFER,iAge,gl.DYNAMIC_DRAW);
+
+const MAX_E=64,MAX_W=64;
+const ePos=new Float32Array(MAX_E*2),wPos=new Float32Array(MAX_W*2);
+const ePosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,ePosBuf);gl.bufferData(gl.ARRAY_BUFFER,ePos,gl.DYNAMIC_DRAW);
+const wPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,wPosBuf);gl.bufferData(gl.ARRAY_BUFFER,wPos,gl.DYNAMIC_DRAW);
+
+const MAX_LINES=20000;
+const lineV=new Float32Array(MAX_LINES*4),lineA=new Float32Array(MAX_LINES*2);
+const lineBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,lineBuf);gl.bufferData(gl.ARRAY_BUFFER,lineV,gl.DYNAMIC_DRAW);
+const lineABuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,lineABuf);gl.bufferData(gl.ARRAY_BUFFER,lineA,gl.DYNAMIC_DRAW);
+
+const MAG_G=20;
+const magV=new Float32Array(MAG_G*MAG_G*4),magA=new Float32Array(MAG_G*MAG_G*2);
+const magBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,magBuf);gl.bufferData(gl.ARRAY_BUFFER,magV,gl.DYNAMIC_DRAW);
+const magABuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,magABuf);gl.bufferData(gl.ARRAY_BUFFER,magA,gl.DYNAMIC_DRAW);
+
+gl.enable(gl.BLEND);
+function setDiv(loc,d){if(isGL2)gl.vertexAttribDivisor(loc,d);else ext.vertexAttribDivisorANGLE(loc,d);}
+function instDraw(n,segs){if(isGL2)gl.drawArraysInstanced(gl.TRIANGLES,0,segs*3,n);else ext.drawArraysInstancedANGLE(gl.TRIANGLES,0,segs*3,n);}
+
+// ═══ WORKER ═══
+const blob=new Blob([WORKER_SRC],{type:'application/javascript'});
+const worker=new Worker(URL.createObjectURL(blob));
+let workerBusy=false,frameData=null,particleCount=0;
+let emitterList=[],wellList=[];
+useSAB=initSAB();
+
+worker.onmessage=function(e){
+  const d=e.data;
+  if(d.type==='frame'){frameData=d;workerBusy=false;}
+  else if(d.type==='count'){particleCount=d.count;}
+  else if(d.type==='backend'){
+    const label=(d.useSAB?'SAB+':'')+(isGL2?'WebGL2':'WebGL1');
+    const badge=document.getElementById('backend-badge');
+    badge.textContent=label;badge.className=(d.useSAB||isGL2)?'gpu':'worker';
+  }
+  else if(d.type==='emitterCount'){document.getElementById('emit-val').textContent=d.count;}
+};
+
+// ═══ AUDIO ═══
+let audioCtx=null,analyser=null,micStream=null,micActive=false;
+let audioBass=0;
+const audioFill=document.getElementById('audio-fill');
+const audioBarWrap=document.getElementById('audio-bar-wrap');
+async function toggleMic(){
+  if(micActive){micStream&&micStream.getTracks().forEach(t=>t.stop());micActive=false;document.getElementById('btn-mic').classList.remove('active');audioBarWrap.classList.remove('active');audioBass=0;return;}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    micStream=stream;audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    analyser=audioCtx.createAnalyser();analyser.fftSize=256;
+    audioCtx.createMediaStreamSource(stream).connect(analyser);
+    micActive=true;document.getElementById('btn-mic').classList.add('active');audioBarWrap.classList.add('active');showToast('🎤 Mic active');
+  }catch(err){showToast('Mic access denied');}
+}
+const freqData=new Uint8Array(128);
+function updateAudio(){
+  if(!micActive||!analyser)return;
+  analyser.getByteFrequencyData(freqData);
+  let bass=0,vol=0;
+  for(let i=0;i<8;i++)bass+=freqData[i];
+  for(let i=0;i<freqData.length;i++)vol+=freqData[i];
+  const audioVol=vol/(freqData.length*255);
+  audioBass=bass/(8*255);
+  audioFill.style.width=(audioVol*100)+'%';
+  if(audioVol>.01)worker.postMessage({type:'config',cfg:{audioBass}});
+}
+
+// ═══ FPS — 60-frame rolling ring buffer ═══
+const FPS_RING=60;const fpsRing=new Float32Array(FPS_RING);
+let fpsIdx=0,fpsFull=false,fpsAvg=60,lastFpsDisp=0;
+const SPARK_N=16;const sparkEl=document.getElementById('fps-spark');const sparkBars=[];
+for(let i=0;i<SPARK_N;i++){const b=document.createElement('div');b.className='spark-bar';sparkEl.appendChild(b);sparkBars.push(b);}
+function updateFPS(raw,now){
+  fpsRing[fpsIdx]=raw;fpsIdx=(fpsIdx+1)%FPS_RING;if(fpsIdx===0)fpsFull=true;
+  const len=fpsFull?FPS_RING:fpsIdx;let sum=0;for(let i=0;i<len;i++)sum+=fpsRing[i];fpsAvg=sum/len;
+  if(now-lastFpsDisp<1000)return;lastFpsDisp=now;
+  const f=Math.round(fpsAvg);
+  const el=document.getElementById('fps-val');el.textContent=f;
+  el.className='stat-val'+(f>=50?'':f>=30?' warn':' bad');
+  for(let i=0;i<SPARK_N;i++){
+    const ri=(fpsIdx-SPARK_N+i+FPS_RING)%FPS_RING;const v=fpsRing[ri]||0;
+    const h=Math.max(1,Math.round(Math.min(v/70,1)*14));
+    sparkBars[i].style.height=h+'px';
+    sparkBars[i].className='spark-bar'+(v>=50?' good':v>=30?' warn':' bad');
+  }
+}
+
+// ═══ PERF + QUALITY ═══
+let perfMode=isMobile;
+const perfBadge=document.getElementById('perf-badge'),perfBtn=document.getElementById('btn-perf');
+if(perfMode){perfBadge.classList.add('active');perfBtn.classList.add('active');}
+function togglePerfMode(){perfMode=!perfMode;perfBadge.classList.toggle('active',perfMode);perfBtn.classList.toggle('active',perfMode);}
+let autoQT=0;
+function adaptiveQuality(fps){
+  autoQT++;if(autoQT<90)return;autoQT=0;
+  if(fps<25&&qualityScale>.25){setQuality(qualityScale===1.0?.5:.25);showToast('⚡ Auto-reduced quality');}
+}
+function setQuality(scale){
+  qualityScale=scale;
+  const labels={0.25:'LOW',.5:'MED',1.0:'HIGH'};
+  document.getElementById('qual-badge').textContent=labels[scale]||'MED';
+  ['ql-low','ql-med','ql-high'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  if(scale===.25)document.getElementById('ql-low').classList.add('active');
+  else if(scale===.5)document.getElementById('ql-med').classList.add('active');
+  else document.getElementById('ql-high').classList.add('active');
+  resize();
+}
+
+// ═══ CONFIGURABLE BENCHMARK ═══
+let benchRunning=false;
+let benchResults=[];
+function openBench(){document.getElementById('bench-overlay').classList.add('active');}
+function closeBench(){document.getElementById('bench-overlay').classList.remove('active');}
+function startBenchmark(){
+  if(benchRunning)return;
+  const tiersRaw=document.getElementById('bench-tiers').value;
+  const secsPerTier=Math.max(1,parseInt(document.getElementById('bench-secs').value)||3);
+  const BCOUNTS=tiersRaw.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n)&&n>0&&n<=HARD_MAX);
+  if(!BCOUNTS.length){showToast('No valid tiers');return;}
+  benchRunning=true;benchResults=[];
+  document.getElementById('btn-bench').classList.add('active');
+  // Build rows
+  const rowsEl=document.getElementById('bench-rows');rowsEl.innerHTML='';
+  BCOUNTS.forEach(cnt=>{
+    const row=document.createElement('div');row.className='bench-row';
+    row.innerHTML=`<span class="bench-label">${fmtCount(cnt)}</span><span class="bench-off" id="boff-${cnt}">—</span><span class="bench-on" id="bon-${cnt}">—</span>`;
+    rowsEl.appendChild(row);
+  });
+  const savedPerf=perfMode,savedQual=qualityScale;
+  perfMode=false;perfBadge.classList.remove('active');perfBtn.classList.remove('active');setQuality(1.0);
+  document.getElementById('bench-status').textContent='Phase 1/2: Perf OFF, High quality…';
+  runBenchPhase(BCOUNTS,secsPerTier,false,()=>{
+    document.getElementById('bench-status').textContent='Phase 2/2: Perf ON, Low quality…';
+    perfMode=true;perfBadge.classList.add('active');perfBtn.classList.add('active');setQuality(.25);
+    runBenchPhase(BCOUNTS,secsPerTier,true,()=>{
+      perfMode=savedPerf;if(perfMode){perfBadge.classList.add('active');perfBtn.classList.add('active');}else{perfBadge.classList.remove('active');perfBtn.classList.remove('active');}
+      setQuality(savedQual);
+      document.getElementById('bench-status').textContent='✅ Done! Green=Perf ON (Low), Orange=Perf OFF (High)';
+      benchRunning=false;document.getElementById('btn-bench').classList.remove('active');
+    });
+  });
+}
+function runBenchPhase(counts,secs,perfOn,done){
+  let idx=0;
+  function next(){
+    if(idx>=counts.length){done();return;}
+    const cnt=counts[idx++];
+    clearAll();
+    setTimeout(()=>{
+      worker.postMessage({type:'add',n:cnt,r:1.0});
+      const samples=[];let lastT=performance.now(),elapsed=0;
+      function measure(){
+        const now=performance.now(),dt=now-lastT;lastT=now;elapsed+=dt;
+        if(dt>0)samples.push(1000/dt);
+        if(elapsed<secs*1000){requestAnimationFrame(measure);}
+        else{
+          const avg=Math.round(samples.reduce((a,b)=>a+b,0)/samples.length);
+          const el=document.getElementById((perfOn?'bon':'boff')+'-'+cnt);
+          if(el)el.textContent=avg+' fps';
+          // Record benchmark result to personal bests
+          recordBenchmarkRun(cnt,avg,perfOn,perfOn?.25:1.0);
+          next();
+        }
+      }
+      requestAnimationFrame(measure);
+    },600);
+  }
+  next();
+}
+
+// ═══ SCREENSHOT ═══
+function takeScreenshot(){
+  // Flush GPU commands so preserveDrawingBuffer captures the current frame
+  gl.flush();
+  const ts=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+  const fname='particle-sim-'+ts+'.png';
+  // Improved iOS detection (covers modern iOS without MSStream check)
+  const ua=navigator.userAgent;
+  const isIOS=/iPad|iPhone|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);
+  canvas.toBlob(function(b){
+    if(!b){showToast('Canvas capture failed');return;}
+    const url=URL.createObjectURL(b);
+    if(isIOS){
+      // iOS Safari: open in new tab so user can long-press → Save Image
+      const w=window.open(url,'_blank');
+      if(!w){showToast('Allow popups to save on iOS');}
+      else{showToast('📷 Long-press image → Save');}
+      setTimeout(()=>URL.revokeObjectURL(url),30000);
+    }else{
+      const a=document.createElement('a');a.href=url;a.download=fname;
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),5000);
+      showToast('📷 Saved!');
+    }
+  },'image/png');
+}
+
+// ═══ EXPLODE ═══
+let explodeFlashTimer=null;
+function triggerExplode(){
+  // Send explode message to worker
+  worker.postMessage({type:'explode',cx:RW*.5,cy:RH*.5,force:18});
+  // Visual flash
+  const flash=document.getElementById('explode-flash');
+  flash.classList.add('bang');
+  clearTimeout(explodeFlashTimer);
+  explodeFlashTimer=setTimeout(()=>{
+    flash.style.transition='opacity .25s';
+    flash.style.opacity='0';
+    setTimeout(()=>{flash.classList.remove('bang');flash.style.transition='';flash.style.opacity='';},260);
+  },60);
+  showToast('💥 BOOM!');
+}
+
+// ═══ G-WELL TRIANGLE MODAL ═══
+function openWellModal(){document.getElementById('well-modal').classList.add('active');}
+function closeWellModal(){document.getElementById('well-modal').classList.remove('active');}
+function confirmWellTriangle(){
+  const n=Math.min(Math.max(1,parseInt(document.getElementById('well-modal-count').value)||500000),HARD_MAX);
+  closeWellModal();
+  clearAll();clearWells();
+  setMode('wells');
+  // Place 3 wells in equilateral triangle centered on canvas
+  const cx=window.innerWidth*.5,cy=window.innerHeight*.5;
+  const r=Math.min(window.innerWidth,window.innerHeight)*.3;
+  const wells=[];
+  for(let i=0;i<3;i++){
+    const angle=-Math.PI/2+i*(Math.PI*2/3);
+    const wx=cx+Math.cos(angle)*r,wy=cy+Math.sin(angle)*r;
+    const w={x:wx*qualityScale,y:wy*qualityScale,expires:0};// permanent
+    wellList.push(w);wells.push(w);
+  }
+  worker.postMessage({type:'addWells',wells:wells.map(w=>({x:w.x,y:w.y,expires:0}))});
+  setTimeout(()=>{worker.postMessage({type:'add',n,r:1.0});showToast(`🕳 Triangle: ${fmtCount(n)} particles`);},200);
+}
+
+// ═══ CONFIG ═══
+const cfg={mode:'gravity',speedMul:1.0,gravStr:.5,maxParticles:20000};
+let trailLength=0.5,particleSize=isMobile?1.5:2.0,glowIntensity=isMobile?.3:.7;
+let W=0,H=0,RW=0,RH=0;
+// Trail alpha derived from trailLength: 0→gl.clear, 0.02→0.5→0.6
+function trailAlpha(){return trailLength<0.02?0:0.02+trailLength*0.58;}
+function sendCfg(){worker.postMessage({type:'config',cfg:{...cfg,W:RW,H:RH}});}
+
+// ═══ RESIZE ═══
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  RW=Math.round(W*qualityScale);RH=Math.round(H*qualityScale);
+  canvas.width=RW;canvas.height=RH;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  gl.viewport(0,0,RW,RH);
+  initStars(RW,RH);
+  gl.bindBuffer(gl.ARRAY_BUFFER,sBuf);gl.bufferData(gl.ARRAY_BUFFER,sPos,gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,sBrBuf);gl.bufferData(gl.ARRAY_BUFFER,sBright,gl.STATIC_DRAW);
+  worker.postMessage({type:'config',cfg:{W:RW,H:RH}});
+}
+window.addEventListener('resize',resize);
+
+// ═══ DRAWER ═══
+let drawerOpen=false;
+function toggleDrawer(){drawerOpen=!drawerOpen;document.getElementById('drawer').classList.toggle('open',drawerOpen);document.getElementById('drawer-toggle').textContent=drawerOpen?'▼ Hide':'▲ Show';}
+let touchStartY=0;
+document.getElementById('drawer').addEventListener('touchstart',e=>{touchStartY=e.touches[0].clientY;},{passive:true});
+document.getElementById('drawer').addEventListener('touchend',e=>{const dy=e.changedTouches[0].clientY-touchStartY;if(dy>40&&drawerOpen)toggleDrawer();else if(dy<-40&&!drawerOpen)toggleDrawer();},{passive:true});
+
+// ═══ INTERACTION ═══
+let emitterMode=false,wellPlaceMode=false,mouseDown=false,mouseX=0,mouseY=0,mouseAttract=true;
+function toRC(cx,cy){return[cx*qualityScale,cy*qualityScale];}
+function toggleEmitterMode(){emitterMode=!emitterMode;wellPlaceMode=false;canvas.className=emitterMode?'emitter-mode':'';document.getElementById('btn-emitter').classList.toggle('active',emitterMode);document.getElementById('btn-well-mode').classList.remove('active');}
+function toggleWellMode(){wellPlaceMode=!wellPlaceMode;emitterMode=false;canvas.className=wellPlaceMode?'well-mode':'';document.getElementById('btn-well-mode').classList.toggle('active',wellPlaceMode);document.getElementById('btn-emitter').classList.remove('active');}
+function clearEmitters(){emitterList=[];worker.postMessage({type:'clearEmitters'});}
+function clearWells(){wellList=[];worker.postMessage({type:'clearWells'});}
+canvas.addEventListener('contextmenu',e=>{e.preventDefault();const[rx,ry]=toRC(e.clientX,e.clientY);if(emitterMode)worker.postMessage({type:'removeEmitter',x:rx,y:ry});else if(wellPlaceMode||cfg.mode==='wells')worker.postMessage({type:'removeWell',x:rx,y:ry});});
+canvas.addEventListener('mousedown',e=>{const[rx,ry]=toRC(e.clientX,e.clientY);if(e.button===2)return;if(emitterMode){emitterList.push({x:rx,y:ry});worker.postMessage({type:'addEmitter',x:rx,y:ry});return;}if(wellPlaceMode||cfg.mode==='wells'){const w={x:rx,y:ry,expires:Date.now()+10000};wellList.push(w);worker.postMessage({type:'addWell',x:rx,y:ry,expires:w.expires});return;}mouseDown=true;mouseX=rx;mouseY=ry;mouseAttract=e.button===0;});
+canvas.addEventListener('mousemove',e=>{if(!mouseDown)return;const[rx,ry]=toRC(e.clientX,e.clientY);mouseX=rx;mouseY=ry;});
+canvas.addEventListener('mouseup',()=>{mouseDown=false;});
+canvas.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];const[rx,ry]=toRC(t.clientX,t.clientY);if(emitterMode){emitterList.push({x:rx,y:ry});worker.postMessage({type:'addEmitter',x:rx,y:ry});return;}if(wellPlaceMode||cfg.mode==='wells'){const w={x:rx,y:ry,expires:Date.now()+10000};wellList.push(w);worker.postMessage({type:'addWell',x:rx,y:ry,expires:w.expires});return;}mouseDown=true;mouseX=rx;mouseY=ry;mouseAttract=e.touches.length<2;},{passive:false});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0];const[rx,ry]=toRC(t.clientX,t.clientY);mouseX=rx;mouseY=ry;},{passive:false});
+canvas.addEventListener('touchend',e=>{if(e.touches.length===0)mouseDown=false;},{passive:true});
+document.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(k==='g')setMode('gravity');else if(k==='o')setMode('orbit');else if(k==='z')setMode('zerog');
+  else if(k==='v')setMode('vortex');else if(k==='r')setMode('repulse');else if(k==='f')setMode('fireworks');
+  else if(k==='n')setMode('constellation');else if(k==='w')setMode('wells');else if(k==='m'&&!e.ctrlKey)setMode('magnetic');
+  else if(k==='e')toggleEmitterMode();else if(k==='p')togglePerfMode();
+  else if(k==='x')triggerExplode();
+  else if(k==='s')takeScreenshot();else if(k==='b')openBench();
+  else if(k==='h')openStats();
+});
+
+// ═══ CONTROLS ═══
+function fmtCount(n){if(n>=1000000)return(n/1000000).toFixed(1)+'M';if(n>=1000)return Math.round(n/1000)+'K';return n;}
+function addParticles(n){worker.postMessage({type:'add',n,r:particleSize});}
+function bigBang(){worker.postMessage({type:'bigbang'});}
+function clearAll(){particleCount=0;frameData=null;worker.postMessage({type:'clear'});}
+const MODE_BTNS=['btn-gravity','btn-orbit','btn-zerog','btn-vortex','btn-repulse','btn-fireworks','btn-constellation','btn-wells','btn-magnetic'];
+function setMode(m){cfg.mode=m;MODE_BTNS.forEach(id=>{const b=document.getElementById(id);if(b)b.classList.toggle('active',id==='btn-'+m);});sendCfg();}
+function setPalette(name){currentPalette=name;document.querySelectorAll('.pal-btn').forEach(b=>b.classList.toggle('active',b.dataset.pal===name));updateLegend();palUniform=buildPalUniform(name);}
+function updateLegend(){const stops=PALETTES[currentPalette];[['ld0',0],['ld1',1],['ld2',2],['ld3',4]].forEach(([id,si])=>{const c=stops[si];document.getElementById(id).style.background=`rgb(${Math.round(c[0]*255)},${Math.round(c[1]*255)},${Math.round(c[2]*255)})`;});}
+function updateSlider(key,val){
+  const v=parseFloat(val);
+  if(key==='trail'){trailLength=v;document.getElementById('sv-trail').textContent=v.toFixed(2);}
+  else if(key==='speed'){cfg.speedMul=v;document.getElementById('sv-speed').textContent=v.toFixed(2);sendCfg();}
+  else if(key==='gravity'){cfg.gravStr=v;document.getElementById('sv-gravity').textContent=v.toFixed(2);sendCfg();}
+  else if(key==='size'){particleSize=v;document.getElementById('sv-size').textContent=v.toFixed(1);}
+  else if(key==='glow'){glowIntensity=v;document.getElementById('sv-glow').textContent=v.toFixed(2);}
+  else if(key==='cap'){cfg.maxParticles=Math.round(v);document.getElementById('sv-cap').textContent=fmtCount(cfg.maxParticles)+(cfg.maxParticles>=500000?' ⚠':'');worker.postMessage({type:'setMax',max:cfg.maxParticles});}
+}
+
+// ═══ PRESETS ═══
+const PRESETS={
+  fireworks:     {mode:'fireworks',    palette:'fire',   count:500, size:1.5,glow:.8,trail:.4,speed:1.2,gravity:.5},
+  ocean:         {mode:'zerog',        palette:'ocean',  count:300, size:2.5,glow:.2,trail:.2,speed:.6, gravity:.0},
+  neon:          {mode:'vortex',       palette:'neon',   count:1000,size:1.2,glow:.9,trail:.3,speed:1.5,gravity:.3},
+  constellation: {mode:'constellation',palette:'cosmic', count:200, size:1.8,glow:.5,trail:.1,speed:.5, gravity:.1},
+  galaxy:        {mode:'orbit',        palette:'cosmic', count:2000,size:1.0,glow:.6,trail:.25,speed:1.0,gravity:.5},
+  magnetic:      {mode:'magnetic',     palette:'ocean',  count:800, size:1.2,glow:.5,trail:.2,speed:.8, gravity:.1},
+  perftest:      {mode:'gravity',      palette:'cosmic', count:5000,size:.8, glow:.0,trail:.8, speed:1.0,gravity:.5}
+};
+function loadPreset(name){
+  const p=PRESETS[name];if(!p)return;
+  clearAll();setPalette(p.palette);setMode(p.mode);
+  particleSize=p.size;glowIntensity=p.glow;trailLength=p.trail;cfg.speedMul=p.speed;cfg.gravStr=p.gravity;
+  document.getElementById('sl-size').value=p.size;document.getElementById('sv-size').textContent=p.size.toFixed(1);
+  document.getElementById('sl-glow').value=p.glow;document.getElementById('sv-glow').textContent=p.glow.toFixed(2);
+  document.getElementById('sl-trail').value=p.trail;document.getElementById('sv-trail').textContent=p.trail.toFixed(2);
+  document.getElementById('sl-speed').value=p.speed;document.getElementById('sv-speed').textContent=p.speed.toFixed(2);
+  document.getElementById('sl-gravity').value=p.gravity;document.getElementById('sv-gravity').textContent=p.gravity.toFixed(2);
+  sendCfg();setTimeout(()=>addParticles(p.count),100);showToast('Loaded: '+name);
+}
+
+// ═══ TOAST ═══
+let toastTimer=null;
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2000);}
+
+// ═══ LOCAL STATS / PERSONAL BEST SYSTEM ═══
+const STATS_KEY='psim_v10_stats';
+const deviceType=isMobile?'mobile':'desktop';
+function loadStats(){try{return JSON.parse(localStorage.getItem(STATS_KEY)||'{"mobile":[],"desktop":[]}')}catch(e){return{mobile:[],desktop:[]};}}
+function saveStats(s){try{localStorage.setItem(STATS_KEY,JSON.stringify(s));}catch(e){}}
+function recordRun(data){
+  const s=loadStats();
+  const entry={...data,device:deviceType,ts:Date.now()};
+  s[deviceType]=s[deviceType]||[];
+  s[deviceType].push(entry);
+  // Keep top 20 per device by score (fps * log10(particles))
+  s[deviceType].sort((a,b)=>(b.avgFps*Math.log10(b.particles+1))-(a.avgFps*Math.log10(a.particles+1)));
+  if(s[deviceType].length>20)s[deviceType].length=20;
+  saveStats(s);
+}
+function clearStats(){if(!confirm('Clear all personal best records?'))return;localStorage.removeItem(STATS_KEY);renderStatsModal();showToast('Stats cleared');}
+function openStats(){renderStatsModal();document.getElementById('stats-overlay').classList.add('active');}
+function closeStats(){document.getElementById('stats-overlay').classList.remove('active');}
+function fmtTs(ts){const d=new Date(ts);return d.toLocaleDateString()+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});}
+function renderStatsModal(){
+  const s=loadStats();
+  const el=document.getElementById('stats-content');
+  let html='';
+  const sections=[['mobile','\ud83d\udcf1 Mobile'],['desktop','\ud83d\udda5 Desktop']];
+  for(const[key,label] of sections){
+    const runs=(s[key]||[]);
+    html+=`<div class="stats-section"><div class="stats-section-hdr ${key}">${label} \u2014 Top Runs</div>`;
+    if(!runs.length){html+=`<div class="stats-empty">No runs recorded yet on ${key}</div>`;}
+    else{
+      runs.slice(0,5).forEach((r,i)=>{
+        const medal=i===0?'\ud83e\udd47':i===1?'\ud83e\udd48':i===2?'\ud83e\udd49':'  ';
+        const qLabel={0.25:'Low',0.5:'Med',1.0:'High'}[r.quality]||'Med';
+        html+=`<div class="stats-row"><span class="stats-label">${medal} ${fmtCount(r.particles)} ptcl</span><span class="stats-val ${i===0?'gold':''}">${r.avgFps} fps avg${r.peakFps&&r.peakFps!==r.avgFps?` / ${r.peakFps}pk`:''}</span></div>`;
+        html+=`<div class="stats-row" style="margin-top:-4px;padding-bottom:6px;border-bottom:1px solid rgba(100,120,200,.08)"><span class="stats-label" style="font-size:9px;color:#334455">${r.mode||'?'} \u00b7 ${r.palette||'?'} \u00b7 ${qLabel}${r.perfMode?' \u00b7 \u26a1':''}</span><span class="stats-val" style="font-size:9px;color:#334455">${fmtTs(r.ts)}</span></div>`;
+      });
+    }
+    html+='</div>';
+  }
+  el.innerHTML=html;
+}
+// Auto-record: track peak FPS, record after 10s of stable running
+let statsPeakFps=0,statsFrameCount=0,statsRunning=false;
+function maybeRecordStats(){
+  if(particleCount<100)return;
+  statsPeakFps=Math.max(statsPeakFps,Math.round(fpsAvg));
+  statsFrameCount++;
+  if(statsFrameCount>=600&&!statsRunning){
+    statsRunning=true;
+    recordRun({particles:particleCount,avgFps:Math.round(fpsAvg),peakFps:statsPeakFps,perfMode,quality:qualityScale,mode:cfg.mode,palette:currentPalette});
+    statsFrameCount=0;statsPeakFps=0;
+    setTimeout(()=>{statsRunning=false;},30000);
+  }
+}
+function recordBenchmarkRun(cnt,avgFps,perfOn,qual){
+  recordRun({particles:cnt,avgFps,peakFps:avgFps,perfMode:perfOn,quality:qual,mode:cfg.mode,palette:currentPalette,source:'bench'});
+}
+
+// ═══ CONSTELLATION LINES ═══
+function buildConstLines(cpx,cpy,n){
+  let lv=0,la=0;const LD=80*qualityScale,LD2=LD*LD,maxL=Math.min(n*4,MAX_LINES/2);
+  for(let i=0;i<n&&lv<maxL;i++){for(let j=i+1;j<n&&lv<maxL;j++){const dx=cpx[i]-cpx[j],dy=cpy[i]-cpy[j],d2=dx*dx+dy*dy;if(d2<LD2){const alpha=(1-Math.sqrt(d2)/LD)*.55;lineV[lv*2]=cpx[i];lineV[lv*2+1]=cpy[i];lineA[la]=alpha;la++;lv++;lineV[lv*2]=cpx[j];lineV[lv*2+1]=cpy[j];lineA[la]=alpha;la++;lv++;}}}
+  return lv;
+}
+
+// ═══ MAGNETIC FIELD LINES ═══
+let magSimT=0;
+function magFieldAt(x,y,t){
+  const W2=RW*.5,H2=RH*.5;let fx=0,fy=0;
+  const a1=t*.3,p1x=W2+Math.cos(a1)*RW*.25,p1y=H2+Math.sin(a1)*RH*.2;
+  const dx1=x-p1x,dy1=y-p1y,r1=Math.sqrt(dx1*dx1+dy1*dy1)+1;
+  const m1x=Math.cos(a1+Math.PI*.5),m1y=Math.sin(a1+Math.PI*.5);
+  const d1=(dx1*m1x+dy1*m1y)/(r1*r1);
+  fx+=(3*d1*dx1/r1-m1x)/r1*800;fy+=(3*d1*dy1/r1-m1y)/r1*800;
+  const a2=-t*.2+Math.PI,p2x=W2+Math.cos(a2)*RW*.2,p2y=H2+Math.sin(a2)*RH*.25;
+  const dx2=x-p2x,dy2=y-p2y,r2=Math.sqrt(dx2*dx2+dy2*dy2)+1;
+  const m2x=Math.cos(a2+Math.PI*.5),m2y=Math.sin(a2+Math.PI*.5);
+  const d2=(dx2*m2x+dy2*m2y)/(r2*r2);
+  fx+=(3*d2*dx2/r2-m2x)/r2*600;fy+=(3*d2*dy2/r2-m2y)/r2*600;
+  return [fx,fy];
+}
+function buildMagLines(t){
+  let vi=0,ai=0;const step=12;
+  for(let gx=0;gx<MAG_G;gx++){for(let gy=0;gy<MAG_G;gy++){
+    const x=(gx+.5)/MAG_G*RW,y=(gy+.5)/MAG_G*RH;
+    const [fx,fy]=magFieldAt(x,y,t);const mag=Math.sqrt(fx*fx+fy*fy)+.001;
+    const nx=fx/mag,ny=fy/mag;const alpha=Math.min(mag/500,.3);
+    magV[vi]=x-nx*step;magV[vi+1]=y-ny*step;vi+=2;
+    magV[vi]=x+nx*step;magV[vi+1]=y+ny*step;vi+=2;
+    magA[ai]=alpha;ai++;magA[ai]=alpha;ai++;
+  }}
+  return MAG_G*MAG_G*2;
+}
+
+// ═══ RENDER LOOP ═══
+const cntEl=document.getElementById('count-val');
+let lastT=0,simTime=0,lastWorkerStep=0,lastFrameMs=16;
+// Worker throttled to 30Hz on mobile, 60Hz on desktop
+const workerInterval=isMobile?1000/30:1000/60;
+// LOD thresholds
+const POINTS_THRESH=isMobile?10000:50000;// switch to GL_POINTS above this
+const FLAT_THRESH=200000;// switch to flat 1px shader above this
+
+function render(now){
+  requestAnimationFrame(render);
+  const raw=now-lastT;lastT=now;simTime=now*.001;magSimT+=raw*.001;
+  lastFrameMs=raw;
+  updateFPS(1000/Math.max(raw,1),now);
+  if(Math.round(now/16)%8===0){cntEl.textContent=fmtCount(particleCount);adaptiveQuality(fpsAvg);maybeRecordStats();}
+  const dt=Math.min(raw/16.67,2.5);
+  updateAudio();
+  // Worker step — throttled
+  if(!workerBusy&&(now-lastWorkerStep)>=workerInterval){
+    workerBusy=true;lastWorkerStep=now;
+    worker.postMessage({type:'step',dt});
+  }
+  if(mouseDown)worker.postMessage({type:'mouse',x:mouseX,y:mouseY,attract:mouseAttract,dt});
+
+  const pal=PALETTES[currentPalette],fc=pal[0];
+  const ta=trailAlpha();
+  // Frame budget: if last frame > 20ms, skip trail fade (use clear instead)
+  const overBudget=lastFrameMs>20;
+
+  // 1. Trail fade or clear
+  if(perfMode||qualityScale<=.25||ta<0.02||overBudget){
+    gl.clearColor(fc[0]*.1,fc[1]*.1,fc[2]*.1,1);gl.clear(gl.COLOR_BUFFER_BIT);
+  }else{
+    gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    gl.useProgram(progFade);
+    gl.bindBuffer(gl.ARRAY_BUFFER,fsBuf);gl.enableVertexAttribArray(fL.a_p);gl.vertexAttribPointer(fL.a_p,2,gl.FLOAT,false,0,0);
+    gl.uniform1f(fL.u_a,ta);gl.uniform3f(fL.u_fc,fc[0],fc[1],fc[2]);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  }
+
+  // 2. Stars (skip in perf mode or low quality)
+  if(!perfMode&&qualityScale>=.5){
+    gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.useProgram(progStar);gl.uniform2f(sL.u_res,RW,RH);
+    gl.bindBuffer(gl.ARRAY_BUFFER,sBuf);gl.enableVertexAttribArray(sL.a_p);gl.vertexAttribPointer(sL.a_p,2,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,sBrBuf);gl.enableVertexAttribArray(sL.a_b);gl.vertexAttribPointer(sL.a_b,1,gl.FLOAT,false,0,0);
+    gl.drawArrays(gl.POINTS,0,SC);
+  }
+
+  // 3. Magnetic field lines (skip in perf mode)
+  if(cfg.mode==='magnetic'&&!perfMode){
+    const lineN=buildMagLines(magSimT);
+    gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.useProgram(progMag);gl.uniform2f(mgL.u_res,RW,RH);gl.uniform1f(mgL.u_t,simTime);
+    gl.bindBuffer(gl.ARRAY_BUFFER,magBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,magV.subarray(0,lineN*2));
+    gl.enableVertexAttribArray(mgL.a_p);gl.vertexAttribPointer(mgL.a_p,2,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,magABuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,magA.subarray(0,lineN));
+    gl.enableVertexAttribArray(mgL.a_alpha);gl.vertexAttribPointer(mgL.a_alpha,1,gl.FLOAT,false,0,0);
+    gl.drawArrays(gl.LINES,0,lineN);
+  }
+
+  // 4. Gather particle data — read from SAB read buffer (opposite of write buffer)
+  let n=0,curPx=null,curPy=null;
+  const sizeScale=particleSize*qualityScale;
+  if(useSAB){
+    // Read from the buffer the worker is NOT currently writing to
+    const wb=Atomics.load(sabCtrl,CTRL_WRITE);
+    const readBuf=wb===0?
+      {px:sabPxB,py:sabPyB,vx:sabVxB,vy:sabVyB,pr:sabPrB,age:sabAgeB,ci:CTRL_COUNT_B}:
+      {px:sabPxA,py:sabPyA,vx:sabVxA,vy:sabVyA,pr:sabPrA,age:sabAgeA,ci:CTRL_COUNT_A};
+    const total=Atomics.load(sabCtrl,readBuf.ci);
+    if(total>0){
+      let vi=0;
+      for(let i=0;i<total;i++){
+        const x=readBuf.px[i],y=readBuf.py[i];
+        // Frustum culling — skip off-screen particles
+        if(x<-20||x>RW+20||y<-20||y>RH+20)continue;
+        iPos[vi*2]=x;iPos[vi*2+1]=y;
+        iRad[vi]=readBuf.pr[i]*sizeScale;
+        iSpd[vi]=Math.sqrt(readBuf.vx[i]*readBuf.vx[i]+readBuf.vy[i]*readBuf.vy[i]);
+        iAge[vi]=readBuf.age[i];vi++;
+      }
+      n=vi;particleCount=total;curPx=readBuf.px;curPy=readBuf.py;
+    }
+  }else if(frameData&&frameData.count>0){
+    const total=frameData.count;particleCount=total;
+    let vi=0;
+    for(let i=0;i<total;i++){
+      const x=frameData.px[i],y=frameData.py[i];
+      if(x<-20||x>RW+20||y<-20||y>RH+20)continue;
+      iPos[vi*2]=x;iPos[vi*2+1]=y;
+      iRad[vi]=frameData.pr[i]*sizeScale;
+      iSpd[vi]=Math.sqrt(frameData.vx[i]*frameData.vx[i]+frameData.vy[i]*frameData.vy[i]);
+      iAge[vi]=frameData.age[i];vi++;
+    }
+    n=vi;curPx=frameData.px;curPy=frameData.py;
+  }
+
+  // 5. Constellation lines (skip in perf mode)
+  if(cfg.mode==='constellation'&&!perfMode&&n>0&&curPx){
+    const lineN=buildConstLines(curPx,curPy,Math.min(particleCount,300));
+    if(lineN>=2){
+      const lc=pal[2];
+      gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.useProgram(progLine);
+      gl.uniform2f(lnL.u_res,RW,RH);gl.uniform3f(lnL.u_lc,lc[0],lc[1],lc[2]);gl.uniform1f(lnL.u_t,simTime);
+      gl.bindBuffer(gl.ARRAY_BUFFER,lineBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,lineV.subarray(0,lineN*2));
+      gl.enableVertexAttribArray(lnL.a_p);gl.vertexAttribPointer(lnL.a_p,2,gl.FLOAT,false,0,0);
+      gl.bindBuffer(gl.ARRAY_BUFFER,lineABuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,lineA.subarray(0,lineN));
+      gl.enableVertexAttribArray(lnL.a_alpha);gl.vertexAttribPointer(lnL.a_alpha,1,gl.FLOAT,false,0,0);
+      gl.drawArrays(gl.LINES,0,lineN);
+    }
+  }
+
+  // 6. Particles — auto LOD based on count
+  if(n>0){
+    gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+    // LOD: flat 1px shader > 200K, GL_POINTS > POINTS_THRESH, instanced quads otherwise
+    if(particleCount>FLAT_THRESH){
+      // Ultra-flat: 1 vertex per particle, no distance calc, 1px point
+      gl.useProgram(progFlat);
+      gl.uniform2f(flL.u_res,RW,RH);
+      gl.uniform3fv(flL.u_pal,palUniform);
+      gl.bindBuffer(gl.ARRAY_BUFFER,iPosBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,iPos.subarray(0,n*2));
+      gl.enableVertexAttribArray(flL.a_pos);gl.vertexAttribPointer(flL.a_pos,2,gl.FLOAT,false,0,0);
+      gl.bindBuffer(gl.ARRAY_BUFFER,iSpdBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,iSpd.subarray(0,n));
+      gl.enableVertexAttribArray(flL.a_spd);gl.vertexAttribPointer(flL.a_spd,1,gl.FLOAT,false,0,0);
+      gl.bindBuffer(gl.ARRAY_BUFFER,iAgeBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,iAge.subarray(0,n));
+      gl.enableVertexAttribArray(flL.a_age);gl.vertexAttribPointer(flL.a_age,1,gl.FLOAT,false,0,0);
+      gl.drawArrays(gl.POINTS,0,n);
+    }else if(particleCount>POINTS_THRESH){
+      // GL_POINTS with circular discard
+      gl.useProgram(progPT);
+      gl.uniform2f(ptL.u_res,RW,RH);gl.uniform1f(ptL.u_pts,sizeScale*2.0);
+      gl.uniform3fv(ptL.u_pal,palUniform);
+      gl.bindBuffer(gl.ARRAY_BUFFER,iPosBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,iPos.subarray(0,n*2));
+      gl.enableVertexAttribArray(ptL.a_pos);gl.vertexAttribPointer(ptL.a_pos,2,gl.FLOAT,false,0,0);
+      gl.bindBuffer(gl.ARRAY_BUFFER,iSpdBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,iSpd.subarray(0,n));
+      gl.enableVertexAttribArray(ptL.a_spd);gl.vertexAttribPointer(ptL.a_spd,1,gl.FLOAT,false,0,0);
+      gl.bindBuffer(gl.ARRAY_BUFFER,iAgeBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,iAge.subarray(0,n));
+      gl.enableVertexAttribArray(ptL.a_age);gl.vertexAttribPointer(ptL.a_age,1,gl.FLOAT,false,0,0);
+      gl.bindBuffer(gl.ARRAY_BUFFER,iRadBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,iRad.subarray(0,n));
+      gl.enableVertexAttribArray(ptL.a_rad);gl.vertexAttribPointer(ptL.a_rad,1,gl.FLOAT,false,0,0);
+      gl.drawArrays(gl.POINTS,0,n);
+    }else{
+      // Instanced quads — best quality, glow works
+      gl.useProgram(progP);
+      gl.uniform2f(pL.u_res,RW,RH);gl.uniform1f(pL.u_glow,perfMode?0.0:glowIntensity);
+      gl.uniform3fv(pL.u_pal,palUniform);
+      gl.bindBuffer(gl.ARRAY_BUFFER,quadBuf);gl.enableVertexAttribArray(pL.a_quad);gl.vertexAttribPointer(pL.a_quad,2,gl.FLOAT,false,0,0);setDiv(pL.a_quad,0);
+      gl.bindBuffer(gl.ARRAY_BUFFER,iPosBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,iPos.subarray(0,n*2));
+      gl.enableVertexAttribArray(pL.a_pos);gl.vertexAttribPointer(pL.a_pos,2,gl.FLOAT,false,0,0);setDiv(pL.a_pos,1);
+      gl.bindBuffer(gl.ARRAY_BUFFER,iRadBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,iRad.subarray(0,n));
+      gl.enableVertexAttribArray(pL.a_rad);gl.vertexAttribPointer(pL.a_rad,1,gl.FLOAT,false,0,0);setDiv(pL.a_rad,1);
+      gl.bindBuffer(gl.ARRAY_BUFFER,iSpdBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,iSpd.subarray(0,n));
+      gl.enableVertexAttribArray(pL.a_spd);gl.vertexAttribPointer(pL.a_spd,1,gl.FLOAT,false,0,0);setDiv(pL.a_spd,1);
+      gl.bindBuffer(gl.ARRAY_BUFFER,iAgeBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,iAge.subarray(0,n));
+      gl.enableVertexAttribArray(pL.a_age);gl.vertexAttribPointer(pL.a_age,1,gl.FLOAT,false,0,0);setDiv(pL.a_age,1);
+      instDraw(n,SEGS);
+      setDiv(pL.a_pos,0);setDiv(pL.a_rad,0);setDiv(pL.a_spd,0);setDiv(pL.a_age,0);
+    }
+  }
+
+  // 7. Emitter rings
+  if(emitterList.length>0){
+    const ne=Math.min(emitterList.length,MAX_E);
+    for(let i=0;i<ne;i++){ePos[i*2]=emitterList[i].x;ePos[i*2+1]=emitterList[i].y;}
+    gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.useProgram(progRing);gl.uniform2f(rL.u_res,RW,RH);gl.uniform1f(rL.u_t,simTime);
+    gl.bindBuffer(gl.ARRAY_BUFFER,quadBuf);gl.enableVertexAttribArray(rL.a_quad);gl.vertexAttribPointer(rL.a_quad,2,gl.FLOAT,false,0,0);setDiv(rL.a_quad,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,ePosBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,ePos.subarray(0,ne*2));
+    gl.enableVertexAttribArray(rL.a_pos);gl.vertexAttribPointer(rL.a_pos,2,gl.FLOAT,false,0,0);setDiv(rL.a_pos,1);
+    instDraw(ne,SEGS);setDiv(rL.a_pos,0);
+  }
+
+  // 8. Gravity well rings
+  if(wellList.length>0){
+    const nw=Math.min(wellList.length,MAX_W);
+    for(let i=0;i<nw;i++){wPos[i*2]=wellList[i].x;wPos[i*2+1]=wellList[i].y;}
+    gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.useProgram(progWell);gl.uniform2f(wL.u_res,RW,RH);gl.uniform1f(wL.u_t,simTime);
+    gl.bindBuffer(gl.ARRAY_BUFFER,quadBuf);gl.enableVertexAttribArray(wL.a_quad);gl.vertexAttribPointer(wL.a_quad,2,gl.FLOAT,false,0,0);setDiv(wL.a_quad,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,wPosBuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,wPos.subarray(0,nw*2));
+    gl.enableVertexAttribArray(wL.a_pos);gl.vertexAttribPointer(wL.a_pos,2,gl.FLOAT,false,0,0);setDiv(wL.a_pos,1);
+    instDraw(nw,SEGS);setDiv(wL.a_pos,0);
+    const now2=Date.now();wellList=wellList.filter(w=>!w.expires||w.expires>now2);
+  }
+}
+
+// ═══ INIT ═══
+if(isMobile){
+  document.getElementById('sl-size').value=1.5;document.getElementById('sv-size').textContent='1.5';
+  document.getElementById('sl-glow').value=.3;document.getElementById('sv-glow').textContent='0.30';
+  document.getElementById('sl-trail').value=.5;document.getElementById('sv-trail').textContent='0.50';
+  setQuality(.5);
+}else{
+  document.getElementById('sl-size').value=2.0;document.getElementById('sv-size').textContent='2.0';
+  document.getElementById('sl-glow').value=.7;document.getElementById('sv-glow').textContent='0.70';
+  document.getElementById('sl-trail').value=.7;document.getElementById('sv-trail').textContent='0.70';
+  setQuality(1.0);
+}
+updateLegend();resize();
+worker.postMessage({type:'init',W:RW,H:RH,
+  sabCtrl:useSAB?sabCtrl.buffer:null,
+  sabPxA:useSAB?sabPxA.buffer:null,sabPyA:useSAB?sabPyA.buffer:null,
+  sabVxA:useSAB?sabVxA.buffer:null,sabVyA:useSAB?sabVyA.buffer:null,
+  sabPrA:useSAB?sabPrA.buffer:null,sabAgeA:useSAB?sabAgeA.buffer:null,
+  sabPxB:useSAB?sabPxB.buffer:null,sabPyB:useSAB?sabPyB.buffer:null,
+  sabVxB:useSAB?sabVxB.buffer:null,sabVyB:useSAB?sabVyB.buffer:null,
+  sabPrB:useSAB?sabPrB.buffer:null,sabAgeB:useSAB?sabAgeB.buffer:null
+});
+sendCfg();
+setTimeout(()=>addParticles(isMobile?50:300),150);
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
